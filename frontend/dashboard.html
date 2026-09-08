@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Dashboard</title>
+
+    <link rel="stylesheet" href="css/app.css">
+        <link rel="stylesheet" href="./css/variables.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/sidebar.css">
+
+    <link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+<div class="layout">
+
+    <div id="sidebar-container"></div>
+
+
+    <!-- MAIN -->
+
+    <div class="main">
+
+        <h1>Dashboard</h1>
+
+        <div class="grid">
+
+            <div class="card">
+                <h3>Ventas Hoy</h3>
+                <h2 id="ventas_hoy">0</h2>
+            </div>
+
+            <div class="card">
+                <h3>Productos Vendidos</h3>
+                <h2 id="productos_hoy">0</h2>
+            </div>
+
+            <div class="card">
+                <h3>Caja Actual</h3>
+                <h2 id="caja_actual">$0</h2>
+            </div>
+
+        </div>
+
+        <!-- GRÁFICO -->
+
+        <div class="card">
+            <canvas id="graficoVentas"></canvas>
+        </div>
+
+        <!-- STOCK BAJO -->
+
+        <div class="card">
+            <h3>Stock bajo</h3>
+            <ul id="alertas"></ul>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    const BASE_PATH = "";
+</script>
+
+<script src="js/sidebar.js"></script>
+
+<script>
+    cargarSidebar();
+</script>
+
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

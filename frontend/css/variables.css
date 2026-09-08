@@ -1,0 +1,56 @@
+/* ===========================
+   LUNA ERP DESIGN SYSTEM
+=========================== */
+
+:root{
+
+    /* Colores principales */
+
+    --primary:#f97316;
+    --primary-dark:#ea580c;
+    --primary-light:#fff7ed;
+
+    /* Sidebar */
+
+    --sidebar:#1f2937;
+    --sidebar-hover:#374151;
+    --sidebar-active:#f97316;
+
+    /* Fondos */
+
+    --background:#f5f7fb;
+    --card:#ffffff;
+
+    /* Texto */
+
+    --text:#111827;
+    --text-light:#6b7280;
+
+    /* Bordes */
+
+    --border:#e5e7eb;
+
+    /* Estados */
+
+    --success:#16a34a;
+    --danger:#dc2626;
+    --warning:#d97706;
+
+    /* Sombras */
+
+    --shadow:
+        0 10px 30px rgba(0,0,0,.08);
+
+    /* Radios */
+
+    --radius:14px;
+
+    /* Espaciados */
+
+    --spacing-xs:6px;
+    --spacing-sm:10px;
+    --spacing-md:16px;
+    --spacing-lg:24px;
+    --spacing-xl:35px;
+
+}

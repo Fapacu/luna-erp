@@ -1,0 +1,414 @@
+/* =========================
+RESET
+========================= */
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:'Inter', sans-serif;
+}
+
+/* =========================
+BODY
+========================= */
+
+body{
+background:#f4f6f9;
+color:#1f2937;
+min-height:100vh;
+}
+
+/* =========================
+NAVBAR
+========================= */
+
+.navbar{
+background:#f97316;
+padding:15px 30px;
+display:flex;
+align-items:center;
+justify-content:space-between;
+box-shadow:0 4px 10px rgba(0,0,0,0.08);
+position:sticky;
+top:0;
+z-index:100;
+}
+
+.nav-left{
+display:flex;
+gap:20px;
+flex-wrap:wrap;
+}
+
+.navbar a{
+color:white;
+text-decoration:none;
+font-weight:600;
+font-size:14px;
+transition:0.2s;
+padding:8px 12px;
+border-radius:8px;
+}
+
+.navbar a:hover{
+background:rgba(255,255,255,0.15);
+}
+
+/* =========================
+CONTENEDOR
+========================= */
+
+.contenedor{
+padding:24px 30px;
+max-width:1600px;
+margin:auto;
+}
+
+/* =========================
+HEADER
+========================= */
+
+.header-reportes{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+}
+
+.header-reportes h1{
+font-size:34px;
+font-weight:700;
+color:#111827;
+}
+
+.subtitulo{
+margin-top:5px;
+color:#6b7280;
+font-size:15px;
+}
+
+/* =========================
+GRID METRICAS
+========================= */
+
+.grid-metricas{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:16px;
+margin-bottom:20px;
+}
+
+/* =========================
+CARDS
+========================= */
+
+.card{
+background:white;
+border-radius:18px;
+padding: 18px;
+box-shadow:0 4px 18px rgba(0,0,0,0.06);
+transition:0.2s;
+}
+
+.card:hover{
+transform:translateY(-3px);
+}
+
+.card span{
+font-size:14px;
+font-weight:600;
+color:#6b7280;
+}
+
+.card h2{
+margin-top:8px;
+font-size:28px;
+font-weight:700;
+color:#111827;
+}
+
+.card h4{
+font-size:15px;
+font-weight:600;
+color:#6b7280;
+margin-bottom:12px;
+}
+
+.card p{
+font-size:28px;
+font-weight:700;
+color:#111827;
+}
+
+/* =========================
+CARDS FINANCIERAS
+========================= */
+
+.card-ventas{
+border-left:6px solid #22c55e;
+}
+
+.card-compras{
+border-left:6px solid #ef4444;
+}
+
+.card-ganancia{
+border-left:6px solid #3b82f6;
+}
+
+.card-margen{
+border-left:6px solid #f97316;
+}
+
+/* =========================
+FILTROS
+========================= */
+
+.filtros{
+display:flex;
+justify-content:space-between;
+align-items:end;
+flex-wrap:wrap;
+gap:15px;
+margin-bottom:20px;
+}
+
+.grupo-fechas{
+display:flex;
+gap:20px;
+flex-wrap:wrap;
+}
+
+.grupo-fechas div{
+display:flex;
+flex-direction:column;
+gap:6px;
+}
+
+label{
+font-size:13px;
+font-weight:600;
+color:#6b7280;
+}
+
+.input{
+padding:12px;
+border-radius:10px;
+border:2px solid #e5e7eb;
+outline:none;
+font-size:14px;
+transition:0.2s;
+background:#fff;
+min-width:180px;
+}
+
+.input:focus{
+border-color:#f97316;
+}
+
+/* =========================
+BOTONES
+========================= */
+
+.btn{
+background:#e5e7eb;
+border:none;
+padding:12px 18px;
+border-radius:10px;
+cursor:pointer;
+font-weight:600;
+transition:0.2s;
+color:#111827;
+}
+
+.btn:hover{
+opacity:0.9;
+transform:translateY(-1px);
+}
+
+.btn-verde{
+background:#f97316;
+color:white;
+}
+
+/* =========================
+ACCIONES FILTROS
+========================= */
+
+.acciones-filtros{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+}
+
+/* =========================
+GRAFICOS
+========================= */
+
+.grid-graficos{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:25px;
+margin-bottom:25px;
+}
+
+.grafico-card{
+min-height:340px;
+}
+
+.titulo-card{
+margin-bottom:20px;
+}
+
+.titulo-card h3{
+font-size:20px;
+color:#111827;
+}
+
+/* =========================
+TABLA
+========================= */
+
+.tabla-container{
+overflow-x:auto;
+margin-top:15px;
+}
+
+.tabla{
+width:100%;
+border-collapse:collapse;
+}
+
+.tabla thead{
+background:#f97316;
+}
+
+.tabla th{
+padding:15px;
+color:white;
+font-size:14px;
+text-align:left;
+}
+
+.tabla td{
+padding:14px;
+border-bottom:1px solid #f3f4f6;
+font-size:14px;
+}
+
+.tabla tr:hover{
+background:#fff7ed;
+}
+
+/* =========================
+TABLA HEADER
+========================= */
+
+.tabla-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:15px;
+flex-wrap:wrap;
+gap:10px;
+}
+
+/* =========================
+TOP RENTABLES
+========================= */
+
+.top-rentables{
+display:flex;
+flex-direction:column;
+gap:12px;
+margin-top:20px;
+}
+
+.rentable-item{
+background:#fff7ed;
+padding:14px 18px;
+border-radius:12px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+font-weight:600;
+border-left:5px solid #f97316;
+}
+
+/* =========================
+CANVAS
+========================= */
+
+canvas{
+max-width:100%;
+}
+
+/* =========================
+RESPONSIVE
+========================= */
+
+@media(max-width:1100px){
+
+.grid-graficos{
+grid-template-columns:1fr;
+}
+
+.grid-metricas{
+grid-template-columns:repeat(2,1fr);
+}
+
+}
+
+@media(max-width:768px){
+
+.contenedor{
+padding:20px;
+}
+
+.header-reportes{
+flex-direction:column;
+align-items:flex-start;
+gap:15px;
+}
+
+.header-reportes h1{
+font-size:28px;
+}
+
+.filtros{
+flex-direction:column;
+align-items:flex-start;
+}
+
+.grupo-fechas{
+width:100%;
+flex-direction:column;
+}
+
+.input{
+width:100%;
+}
+
+.acciones-filtros{
+width:100%;
+}
+
+.btn{
+flex:1;
+}
+
+.card h2{
+font-size:24px;
+}
+
+.card p{
+font-size:24px;
+}
+
+.grid-metricas{
+grid-template-columns:1fr;
+}
+
+}
+

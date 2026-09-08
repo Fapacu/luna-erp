@@ -1,0 +1,32 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background: var(--background);
+    color: var(--text);
+    font-family: "Inter", sans-serif;
+}
+
+.layout{
+    display:flex;
+    min-height:100vh;
+}
+
+.main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+
+    /* IMPORTANTE */
+    margin-left:270px;
+
+    min-height:100vh;
+}
+
+.page{
+    padding:30px;
+    flex:1;
+}

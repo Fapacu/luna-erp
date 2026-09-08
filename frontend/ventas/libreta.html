@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>
+
+        Luna ERP | Cuentas por Cobrar
+
+    </title>
+
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../css/pages/libreta.css">
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+</head>
+
+<body>
+
+<div id="sidebar-container"></div>
+
+<main class="main">
+
+<section class="page">
+
+    <!-- ==========================
+            HEADER
+    ========================== -->
+
+    <div class="page-header">
+
+        <div>
+
+            <h1>
+
+                <i class="bi bi-journal-text"></i>
+
+                Cuentas por Cobrar
+
+            </h1>
+
+            <p>
+
+                Gestione las libretas, los pagos y los saldos pendientes.
+
+            </p>
+
+        </div>
+
+        <div class="header-actions">
+
+            <div class="search-box">
+
+                <i class="bi bi-search"></i>
+
+                <input
+                    type="text"
+                    id="buscarCliente"
+                    placeholder="Buscar cliente...">
+
+            </div>
+
+        </div>
+
+    </div>
+        <!-- ==========================
+            KPIs
+    ========================== -->
+
+    <div class="grid-kpis">
+
+        <div class="kpi-card">
+
+            <div class="kpi-icon">
+
+                <i class="bi bi-journal-bookmark-fill"></i>
+
+            </div>
+
+            <div>
+
+                <span>
+
+                    Libretas
+
+                </span>
+
+                <h2 id="kpiLibretas">
+
+                    0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+
+        <div class="kpi-card">
+
+            <div class="kpi-icon azul">
+
+                <i class="bi bi-cash-stack"></i>
+
+            </div>
+
+            <div>
+
+                <span>
+
+                    Total Adeudado
+
+                </span>
+
+                <h2 id="kpiTotalAdeudado">
+
+                    Gs. 0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+
+        <div class="kpi-card">
+
+            <div class="kpi-icon naranja">
+
+                <i class="bi bi-hourglass-split"></i>
+
+            </div>
+
+            <div>
+
+                <span>
+
+                    Pendientes
+
+                </span>
+
+                <h2 id="kpiPendientes">
+
+                    0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+
+        <div class="kpi-card">
+
+            <div class="kpi-icon verde">
+
+                <i class="bi bi-check-circle-fill"></i>
+
+            </div>
+
+            <div>
+
+                <span>
+
+                    Canceladas
+
+                </span>
+
+                <h2 id="kpiCanceladas">
+
+                    0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+    </div>
+        <!-- ==========================
+            TABLA LIBRETAS
+    ========================== -->
+
+    <div class="card"
+    id="cardLibretas">
+
+        <div class="card-header">
+
+            <div>
+
+                <h2>
+
+                    <i class="bi bi-list-ul"></i>
+
+                    Clientes con Deuda
+
+                </h2>
+
+                <small>
+
+                    Historial de clientes con cuentas por cobrar.
+
+                </small>
+
+            </div>
+
+        </div>
+
+        <div class="table-container">
+
+            <table class="tabla-libreta">
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+
+                            Cliente
+
+                        </th>
+
+                        <th>
+
+                            Total
+
+                        </th>
+
+                        <th>
+
+                            Pagado
+
+                        </th>
+
+                        <th>
+
+                            Saldo
+
+                        </th>
+
+                        <th>
+
+                            Estado
+
+                        </th>
+
+                        <th style="width:200px">
+
+                            Acciones
+
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="tablaLibreta">
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+        <div
+    id="sinResultados"
+    class="empty-state"
+    style="display:none;">
+
+    <i class="bi bi-journal-x"></i>
+
+    <h3>
+
+        No existen cuentas por cobrar
+
+    </h3>
+
+    <p>
+
+        Las ventas realizadas a libreta aparecerán aquí.
+
+    </p>
+
+</div>
+    </section>
+
+</main>
+
+<div id="modalDetalle" class="modal">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+
+            <h2 id="detalleCliente">
+
+                Detalle
+
+            </h2>
+
+            <button
+                class="btn-cerrar"
+                onclick="cerrarModal()">
+
+                ✖
+
+            </button>
+
+        </div>
+
+        <div
+            id="detalleFecha"
+            class="detalle-fecha">
+
+        </div>
+
+        <div id="detalleProductos">
+
+        </div>
+
+        <div class="detalle-total">
+
+            Total Adeudado:
+
+            <span id="detalleTotal"></span>
+
+        </div>
+
+    </div>
+
+</div>
+<script>
+
+const BASE_PATH = "../";
+
+</script>
+
+<script src="../js/sidebar.js"></script>
+
+<script>
+
+cargarSidebar();
+
+</script>
+
+<script src="../js/libreta.js"></script>
+
+</body>
+
+</html>

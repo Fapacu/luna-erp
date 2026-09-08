@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Finanzas ERP</title>
+
+<link rel="stylesheet" href="./css/pages/finanzas.css">
+    <link rel="stylesheet" href="./css/variables.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/sidebar.css">
+
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+rel="stylesheet">
+
+</head>
+
+<body>
+
+
+<div id="sidebar-container"></div>
+
+
+<div class="main">
+
+
+    <!-- HEADER -->
+
+    <div class="header">
+
+        <div>
+
+            <h1>
+                💰 Finanzas ERP
+            </h1>
+
+            <p class="subtitulo">
+
+                Flujo financiero,
+                rentabilidad y balance empresarial
+
+            </p>
+
+        </div>
+
+
+        <button
+        class="btn-principal"
+        onclick="abrirFormulario()">
+
+            + Registrar Gasto
+
+        </button>
+
+    </div>
+
+
+    <!-- KPIS -->
+
+    <div class="grid-kpis">
+
+
+        <div class="kpi-card ingreso">
+
+            <span>Ingresos</span>
+
+            <h2 id="kpiIngresos">
+                Gs. 0
+            </h2>
+
+        </div>
+
+
+        <div class="kpi-card egreso">
+
+            <span>Egresos</span>
+
+            <h2 id="kpiEgresos">
+                Gs. 0
+            </h2>
+
+        </div>
+
+
+        <div class="kpi-card utilidad">
+
+            <span>Utilidad</span>
+
+            <h2 id="kpiUtilidad">
+                Gs. 0
+            </h2>
+
+        </div>
+
+
+        <div class="kpi-card balance">
+
+            <span>Balance</span>
+
+            <h2 id="kpiBalance">
+                POSITIVO
+            </h2>
+
+        </div>
+
+    </div>
+
+
+    <!-- GRAFICO -->
+
+    <div class="card">
+
+        <h3>
+            📈 Flujo Financiero
+        </h3>
+
+        <canvas id="graficoFinanzas"></canvas>
+
+    </div>
+
+
+    <!-- TABLA -->
+
+    <div class="card">
+
+        <div class="tabla-header">
+
+            <h3>
+                💳 Movimientos Financieros
+            </h3>
+
+        </div>
+
+
+        <div class="tabla-container">
+
+            <table class="tabla">
+
+                <thead>
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>Tipo</th>
+
+                        <th>Categoría</th>
+
+                        <th>Descripción</th>
+
+                        <th>Monto</th>
+
+                        <th>Fecha</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="tablaMovimientos"></tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- MODAL -->
+
+<div id="modalGasto"
+class="modal">
+
+<div class="modal-content">
+
+
+    <div class="modal-header">
+
+        <h2>
+            Registrar Gasto
+        </h2>
+
+        <button
+        class="btn-cerrar"
+        onclick="cerrarFormulario()">
+
+            ✖
+
+        </button>
+
+    </div>
+
+
+    <div class="grid-form">
+
+
+        <div>
+
+            <label>Categoría</label>
+
+            <select id="categoria">
+
+                <option value="GASTO">
+                    GASTO
+                </option>
+
+                <option value="SERVICIO">
+                    SERVICIO
+                </option>
+
+                <option value="SALARIO">
+                    SALARIO
+                </option>
+
+                <option value="OTRO">
+                    OTRO
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div>
+
+            <label>Monto</label>
+
+            <input id="monto">
+
+        </div>
+
+    </div>
+
+
+    <label>Descripción</label>
+
+    <textarea
+    id="descripcion"
+    class="textarea"></textarea>
+
+
+    <div class="acciones">
+
+        <button
+        class="btn-guardar"
+        onclick="guardarGasto()">
+
+            Guardar
+
+        </button>
+
+        <button
+        class="btn-cancelar"
+        onclick="cerrarFormulario()">
+
+            Cancelar
+
+        </button>
+
+    </div>
+
+</div>
+
+</div>
+
+<script>
+const BASE_PATH="";
+</script>
+
+<script src="js/sidebar.js"></script>
+
+<script>
+cargarSidebar();
+</script>
+
+<script src="js/finanzas.js"></script>
+
+</body>
+
+</html>

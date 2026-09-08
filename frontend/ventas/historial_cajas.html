@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Historial de Cajas</title>
+
+<link rel="stylesheet" href="../css/pos.css">
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<style>
+
+.filtros{
+
+display:flex;
+
+gap:10px;
+
+margin-bottom:15px;
+
+flex-wrap:wrap;
+}
+
+.filtros input{
+
+padding:10px;
+
+border-radius:8px;
+
+border:1px solid #ddd;
+}
+
+.filtros button{
+
+padding:10px 14px;
+
+border:none;
+
+border-radius:8px;
+
+cursor:pointer;
+
+background:#f97316;
+
+color:white;
+
+font-weight:bold;
+}
+
+.resumen{
+
+display:flex;
+
+gap:15px;
+
+margin-bottom:15px;
+
+flex-wrap:wrap;
+}
+
+.card-resumen{
+
+background:white;
+
+padding:15px;
+
+border-radius:10px;
+
+box-shadow:0 2px 8px rgba(0,0,0,0.08);
+
+min-width:180px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="topbar">
+
+    <a href="caja.html"
+    class="btn-volver">
+
+        ⬅ Volver Caja
+
+    </a>
+
+</div>
+
+
+<div class="pos-left">
+
+    <div class="stats">
+
+        <h2>📜 Historial de Cajas</h2>
+
+    </div>
+
+
+    <!-- FILTROS -->
+
+    <div class="filtros">
+
+        <input
+            type="date"
+            id="fechaDesde"
+        >
+
+        <input
+            type="date"
+            id="fechaHasta"
+        >
+
+        <button onclick="filtrarHistorial()">
+
+            🔎 Filtrar
+
+        </button>
+
+        <button onclick="window.print()">
+
+            🖨 Imprimir
+
+        </button>
+
+        <button onclick="descargarCSV()">
+
+            📥 Excel
+
+        </button>
+
+    </div>
+
+
+    <!-- RESUMEN -->
+
+    <div class="resumen">
+
+        <div class="card-resumen">
+
+            <strong>Total Cajas</strong>
+
+            <h2 id="totalCajas">0</h2>
+
+        </div>
+
+
+        <div class="card-resumen">
+
+            <strong>Total Sistema</strong>
+
+            <h2 id="totalSistema">
+
+                Gs. 0
+
+            </h2>
+
+        </div>
+
+
+        <div class="card-resumen">
+
+            <strong>Total Diferencias</strong>
+
+            <h2 id="totalDiferencias">
+
+                Gs. 0
+
+            </h2>
+
+        </div>
+
+    </div>
+
+
+    <!-- TABLA -->
+
+    <div class="tabla-container">
+
+        <table class="tabla">
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Apertura</th>
+
+                    <th>Cierre</th>
+
+                    <th>Inicial</th>
+
+                    <th>Sistema</th>
+
+                    <th>Real</th>
+
+                    <th>Diferencia</th>
+
+                    <th>Estado</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="tablaHistorial">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const token =
+localStorage.getItem("token");
+
+let historialGlobal = [];
+
+
+
+async function cargarHistorial(){
+
+    try{
+
+        const response = await fetch(
+
+            "http://127.0.0.1:8000/api/ventas/caja/historial/",
+
+            {
+
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        historialGlobal = data;
+
+        renderTabla(data);
+
+    }
+
+    catch(error){
+
+        console.error(error);
+
+        alert("Error cargando historial");
+    }
+}
+
+
+
+function renderTabla(data){
+
+    const tabla =
+    document.getElementById(
+        "tablaHistorial"
+    );
+
+    tabla.innerHTML = "";
+
+
+
+    let totalSistema = 0;
+
+    let totalDiferencias = 0;
+
+
+
+    data.forEach(caja => {
+
+        totalSistema +=
+        Number(caja.monto_sistema || 0);
+
+        totalDiferencias +=
+        Number(caja.diferencia || 0);
+
+
+
+        tabla.innerHTML += `
+
+        <tr>
+
+            <td>${caja.id}</td>
+
+            <td>${caja.fecha_apertura || '-'}</td>
+
+            <td>${caja.fecha_cierre || '-'}</td>
+
+            <td>
+                Gs. ${Number(caja.monto_inicial).toLocaleString()}
+            </td>
+
+            <td>
+                Gs. ${Number(caja.monto_sistema || 0).toLocaleString()}
+            </td>
+
+            <td>
+                Gs. ${Number(caja.monto_real || 0).toLocaleString()}
+            </td>
+
+            <td style="color:
+                ${caja.diferencia > 0
+                    ? 'green'
+                    : caja.diferencia < 0
+                    ? 'red'
+                    : 'black'
+                };
+                font-weight:bold;
+            ">
+
+                Gs. ${Number(caja.diferencia || 0).toLocaleString()}
+
+            </td>
+
+            <td>
+
+                ${caja.abierta
+                    ? '🟢 Abierta'
+                    : '🔴 Cerrada'}
+
+            </td>
+
+        </tr>
+
+        `;
+    });
+
+
+
+    document.getElementById(
+        "totalCajas"
+    ).innerText =
+    data.length;
+
+
+
+    document.getElementById(
+        "totalSistema"
+    ).innerText =
+    "Gs. " +
+    totalSistema.toLocaleString();
+
+
+
+    document.getElementById(
+        "totalDiferencias"
+    ).innerText =
+    "Gs. " +
+    totalDiferencias.toLocaleString();
+}
+
+
+
+/*
+=====================================
+FILTRAR FECHAS
+=====================================
+*/
+
+function filtrarHistorial(){
+
+    const desde =
+    document.getElementById(
+        "fechaDesde"
+    ).value;
+
+    const hasta =
+    document.getElementById(
+        "fechaHasta"
+    ).value;
+
+
+
+    let filtrado =
+    historialGlobal;
+
+
+
+    if(desde){
+
+        filtrado = filtrado.filter(c =>
+
+            c.fecha_apertura &&
+            c.fecha_apertura.substring(0,10) >= desde
+        );
+    }
+
+
+
+    if(hasta){
+
+        filtrado = filtrado.filter(c =>
+
+            c.fecha_apertura &&
+            c.fecha_apertura.substring(0,10) <= hasta
+        );
+    }
+
+
+
+    renderTabla(filtrado);
+}
+
+
+
+/*
+=====================================
+DESCARGAR CSV
+=====================================
+*/
+
+function descargarCSV(){
+
+    let csv =
+    "ID,Apertura,Cierre,Inicial,Sistema,Real,Diferencia,Estado\n";
+
+
+
+    historialGlobal.forEach(caja => {
+
+        csv +=
+
+`${caja.id},
+${caja.fecha_apertura},
+${caja.fecha_cierre},
+${caja.monto_inicial},
+${caja.monto_sistema},
+${caja.monto_real},
+${caja.diferencia},
+${caja.abierta ? 'Abierta':'Cerrada'}
+\n`;
+
+    });
+
+
+
+    const blob =
+    new Blob([csv], {
+        type:'text/csv'
+    });
+
+
+
+    const url =
+    window.URL.createObjectURL(blob);
+
+
+
+    const a =
+    document.createElement('a');
+
+    a.href = url;
+
+    a.download = 'historial_cajas.csv';
+
+    a.click();
+}
+
+
+
+cargarHistorial();
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Caja ERP</title>
+
+<link rel="stylesheet" href="../css/pos.css">
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<!-- ======================
+TOPBAR
+====================== -->
+
+<div class="topbar">
+
+    <div class="topbar-left">
+
+        <i class="bi bi-house"></i>
+
+        <a href="../dashboard.html"
+        class="btn-volver">
+
+            ⬅ Dashboard
+
+        </a>
+
+    </div>
+
+
+    <div class="topbar-center">
+
+        <button onclick="abrirCaja()"
+        id="btnAbrir"
+        class="btn-verde">
+
+            🟢 Abrir Caja
+
+        </button>
+
+
+        <button onclick="cerrarCaja()"
+        id="btnCerrar"
+        class="btn-rojo">
+
+            🔴 Cerrar Caja
+
+        </button>
+
+    </div>
+
+    <a href="historial_cajas.html"
+class="btn-volver">
+
+    📜 Historial
+
+</a>
+
+
+    <div class="topbar-right">
+
+        <button onclick="logout()"
+        class="btn-salir">
+
+            💨 Salir
+
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- ======================
+ESTADO
+====================== -->
+
+<div class="estado-box">
+
+    <strong>Estado de Caja:</strong>
+
+    <span id="estadoCaja">
+        Cargando...
+    </span>
+
+</div>
+
+
+<!-- ======================
+POS
+====================== -->
+
+<div class="pos">
+
+
+<!-- ======================
+PANEL IZQUIERDO
+====================== -->
+
+<div class="pos-left">
+
+
+    <!-- ======================
+    ESCANER
+    ====================== -->
+
+   <!-- ======================
+ESCANER
+====================== -->
+
+<div class="scanner-box">
+
+    <div class="scanner-header">
+
+        <h3>📦 Escáner</h3>
+
+        <button
+            id="btnActivarCamara"
+            onclick="activarCamara()"
+            class="btn-scanner"
+        >
+
+            📷 Cámara
+
+        </button>
+
+    </div>
+
+
+
+    <!-- CAMARA -->
+
+    <div
+        id="scannerContainer"
+        class="scanner-container"
+        style="display:none;"
+    >
+
+        <div id="scanner"></div>
+
+    </div>
+
+</div>
+
+    <!-- ======================
+    BUSCADOR
+    ====================== -->
+
+<div class="busqueda-container">
+
+    <input
+    id="busquedaProducto"
+    class="busqueda input-scanner"
+    type="text"
+    placeholder="Escanear código o buscar producto..."
+    autocomplete="off"
+    autofocus
+>
+
+    <div
+        id="sugerencias"
+        class="sugerencias">
+    </div>
+
+</div>
+
+    <!-- ======================
+    TABLA
+    ====================== -->
+
+    <div class="tabla-container">
+
+        <table class="tabla">
+
+            <thead>
+
+                <tr>
+
+                    <th>Producto</th>
+
+                    <th>Cant</th>
+
+                    <th>Precio</th>
+
+                    <th>Total</th>
+
+                    <th></th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="tablaVentas"></tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+
+<!-- ======================
+PANEL DERECHO
+====================== -->
+
+<div class="pos-right">
+
+
+    <!-- TOTAL -->
+
+    <div class="total-box">
+
+        <p>Total Venta</p>
+
+        <h1 id="totalVenta">
+            Gs. 0
+        </h1>
+
+    </div>
+
+
+    <!-- MÉTODO PAGO -->
+
+    <div class="card-pos">
+
+        <label>Método de pago</label>
+
+        <select id="metodoPago">
+
+            <option value="EFECTIVO">
+                💵 Efectivo
+            </option>
+
+            <option value="TARJETA">
+                💳 Tarjeta
+            </option>
+
+            <option value="TRANSFERENCIA">
+                🏦 Transferencia
+            </option>
+
+            <option value="LIBRETA">
+                📒 Libreta
+            </option>
+
+        </select>
+
+        <div id="bloqueLibreta" style="display:none;">
+
+            <label>Cliente</label>
+
+            <input
+                type="text"
+                id="clienteLibreta"
+                placeholder="Buscar o escribir un nuevo cliente...">
+
+            <div id="sugerenciasLibreta"></div>
+
+        </div>
+
+    </div>
+
+
+    <!-- MONTO RECIBIDO -->
+
+    <div class="card-pos">
+
+        <label>Monto recibido</label>
+
+        <input type="number"
+
+        id="montoRecibido"
+
+        placeholder="Gs. recibido">
+
+    </div>
+
+
+    <!-- VUELTO -->
+
+    <div class="vuelto-box">
+
+        Vuelto:
+
+        <span id="vuelto">
+            Gs. 0
+        </span>
+
+    </div>
+
+
+    <!-- BOTON COBRAR -->
+
+    <button onclick="finalizarVenta()"
+    class="btn-cobrar">
+
+        💰 COBRAR
+
+    </button>
+
+
+    <!-- CAJA -->
+
+    <div class="stats">
+
+        <h3>💰 Caja Actual</h3>
+
+        <p>
+            Inicial:
+            <span id="cajaInicial">
+                Gs. 0
+            </span>
+        </p>
+
+        <p>
+            Ventas:
+            <span id="cajaVentas">
+                Gs. 0
+            </span>
+        </p>
+
+        <p>
+            Total:
+            <span id="cajaTotal">
+                Gs. 0
+            </span>
+        </p>
+
+    </div>
+
+
+    <!-- ESTADISTICAS -->
+
+    <div class="stats">
+
+        <h3>📊 Estadísticas Hoy</h3>
+
+        <p>
+            Ventas:
+            <span id="ventasHoy">
+                Gs. 0
+            </span>
+        </p>
+
+        <p>
+            Productos:
+            <span id="productosHoy">
+                0
+            </span>
+        </p>
+
+    </div>
+
+
+    <!-- RETIROS -->
+
+    <div class="stats">
+
+        <h3>💸 Retiros Caja</h3>
+
+        <input
+            type="text"
+            id="retiroDescripcion"
+            placeholder="Descripción retiro"
+        >
+
+        <input
+            type="number"
+            id="retiroMonto"
+            placeholder="Monto retiro"
+        >
+
+        <button onclick="registrarRetiro()">
+            Registrar Retiro
+        </button>
+
+    </div>
+
+
+    <!-- GASTOS -->
+
+    <div class="stats">
+
+        <h3>🧾 Gastos Caja</h3>
+
+        <input
+            type="text"
+            id="gastoDescripcion"
+            placeholder="Descripción gasto"
+        >
+
+        <input
+            type="number"
+            id="gastoMonto"
+            placeholder="Monto gasto"
+        >
+
+        <button onclick="registrarGasto()">
+            Registrar Gasto
+        </button>
+
+    </div>
+
+
+    <!-- KPIs -->
+
+    <div class="stats">
+
+        <h3>📊 KPIs Caja ERP</h3>
+
+        <p>
+            Ingresos:
+            <span id="kpiIngresos">
+                Gs. 0
+            </span>
+        </p>
+
+        <p>
+            Retiros:
+            <span id="kpiRetiros">
+                Gs. 0
+            </span>
+        </p>
+
+        <p>
+            Gastos:
+            <span id="kpiGastos">
+                Gs. 0
+            </span>
+        </p>
+
+    </div>
+
+
+    <!-- ATAJOS -->
+
+    <div class="stats">
+
+        <h3>⌨ Atajos</h3>
+
+        <p>F9 → Cobrar</p>
+
+        <p>ESC → Limpiar carrito</p>
+
+    </div>
+
+</div>
+
+</div>
+
+
+
+<!-- ======================
+MODAL KG
+====================== -->
+
+<div id="modalCantidad"
+class="modal">
+
+    <div class="modal-content">
+
+        <h2>
+            Ingresar cantidad
+        </h2>
+
+        <p id="nombreProductoModal"></p>
+
+        <input type="number"
+
+        id="inputCantidadKg"
+
+        step="0.01"
+
+        placeholder="Ej: 0.25">
+
+
+        <div class="acciones">
+
+            <button onclick="confirmarCantidad()">
+
+                Agregar
+
+            </button>
+
+            <button onclick="cerrarModalCantidad()">
+
+                Cancelar
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ======================
+SCRIPTS
+====================== -->
+
+
+<script>
+    const BASE_PATH = "../";
+</script>
+
+<script src="../js/permisos.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/caja.js?v=10"></script>
+
+<script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.js"></script>
+
+<script src="../js/scanner.js"></script>
+
+</body>
+
+</html>

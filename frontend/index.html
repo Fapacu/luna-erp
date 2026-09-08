@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+    <title>Luna Minimarket</title>
+
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Segoe UI;
+            background: #1e3a8a;
+            color: white;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h1>Cargando sistema...</h1>
+
+    <script>
+
+        setTimeout(() => {
+
+            const token = localStorage.getItem("token")
+
+            if (token) {
+
+                window.location.href = "dashboard.html"
+
+            } else {
+
+                window.location.href = "login.html"
+
+            }
+
+        }, 1000)
+
+    </script>
+
+</body>
+
+</html>

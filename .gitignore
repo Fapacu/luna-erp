@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Variables y secretos
+.env
+.env.*
+
+# Base de datos local
+*.sqlite3
+db.sqlite3
+
+# Django
+*.log
+media/
+staticfiles/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Archivos temporales
+*.tmp
+*.temp

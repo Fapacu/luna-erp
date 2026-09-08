@@ -1,0 +1,121 @@
+/* ===========================
+   SIDEBAR
+=========================== */
+
+.sidebar{
+    width: 270px;
+    height: 100vh;
+    background: var(--sidebar);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    top: 0;
+    box-shadow: 4px 0 15px rgba(0,0,0,.08);
+}
+
+/* ===========================
+   LOGO
+=========================== */
+
+.logo{
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 25px 20px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.logo-icon{
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: var(--primary);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+}
+
+.logo h2{
+    font-size: 20px;
+    margin: 0;
+}
+
+.logo small{
+    color: #cbd5e1;
+}
+
+/* ===========================
+   USUARIO
+=========================== */
+
+.usuario-panel{
+    padding: 20px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    line-height: 1.6;
+}
+
+.usuario-panel strong{
+    display: block;
+    font-size: 16px;
+}
+
+.usuario-panel small{
+    color: #cbd5e1;
+}
+
+/* ===========================
+   MENÚ
+=========================== */
+
+.menu{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 15px 10px;
+    overflow-y: auto;
+}
+
+.menu a{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: #e2e8f0;
+    padding: 12px 15px;
+    border-radius: 10px;
+    transition: .25s;
+    margin-bottom: 5px;
+}
+
+.menu a:hover{
+    background: rgba(255,255,255,.08);
+}
+
+.menu a.active{
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+}
+
+/* ===========================
+   BOTÓN SALIR
+=========================== */
+
+.btn-salir{
+    margin: 20px;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    background: #ef4444;
+    color: white;
+    cursor: pointer;
+    font-size: 15px;
+    transition: .25s;
+}
+
+.btn-salir:hover{
+    background: #dc2626;
+}

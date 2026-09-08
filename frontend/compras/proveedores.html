@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Proveedores | Luna ERP</title>
+
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../css/header.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/pages/proveedores.css">
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+</head>
+
+<body>
+
+<div class="layout">
+
+    <aside id="sidebar-container"></aside>
+
+    <main class="main">
+
+        <header id="header-container"></header>
+
+        <section class="page">
+
+            <!-- ==========================
+                 ENCABEZADO
+            =========================== -->
+
+            <div class="page-header">
+
+                <div>
+
+                    <h1>
+                        <i class="bi bi-truck"></i>
+                        Proveedores
+                    </h1>
+
+                    <p>
+                        Administración de proveedores y productos asociados.
+                    </p>
+
+                </div>
+
+                <button
+                    class="btn-primary btn-nueva-compra"
+                    onclick="abrirFormulario()">
+
+                    <i class="bi bi-plus-circle-fill"></i>
+
+                    Nuevo proveedor
+
+                </button>
+
+            </div>
+
+
+            <!-- ==========================
+                    KPIs
+            =========================== -->
+
+            <div class="grid-kpis">
+
+                <div class="kpi-card">
+
+                    <div class="kpi-icon">
+
+                        <i class="bi bi-truck"></i>
+
+                    </div>
+
+                    <div>
+
+                        <span>Total proveedores</span>
+
+                        <h2 id="totalProveedores">
+
+                            0
+
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div class="kpi-card">
+
+                    <div class="kpi-icon azul">
+
+                        <i class="bi bi-box-seam"></i>
+
+                    </div>
+
+                    <div>
+
+                        <span>Productos asociados</span>
+
+                        <h2 id="totalProductos">
+
+                            0
+
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div class="kpi-card">
+
+                    <div class="kpi-icon rojo">
+
+                        <i class="bi bi-telephone"></i>
+
+                    </div>
+
+                    <div>
+
+                        <span>Con teléfono</span>
+
+                        <h2 id="kpiTelefonos">
+
+                            0
+
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div class="kpi-card">
+
+                    <div class="kpi-icon verde">
+
+                        <i class="bi bi-calendar-check"></i>
+
+                    </div>
+
+                    <div>
+
+                        <span>Último registro</span>
+
+                        <h2 id="kpiUltimo">
+
+                            --
+
+                        </h2>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ==========================
+                 LISTA
+            =========================== -->
+
+            <div class="card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h2>
+
+                            <i class="bi bi-list-ul"></i>
+
+                            Lista de proveedores
+
+                        </h2>
+
+                        <small>
+
+                            Proveedores registrados
+
+                        </small>
+
+                    </div>
+
+                    <div class="search-box">
+
+                        <i class="bi bi-search"></i>
+
+                        <input
+                            type="text"
+                            id="buscarProveedor"
+                            placeholder="Buscar proveedor...">
+
+                    </div>
+
+                </div>
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>Proveedor</th>
+                                <th>Teléfono</th>
+                                <th>Productos Asociados</th>
+                                <th>Total</th>
+                                <th style="width:120px;">
+                                    Acciones
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="tablaProveedores">
+
+                        </tbody>
+                                            </table>
+
+                </div>
+
+            </div>
+
+
+            <!-- ==========================
+                 MODAL
+            =========================== -->
+
+            <div id="modalProveedor" class="modal">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <div>
+
+                            <h2>
+
+                                <i class="bi bi-truck"></i>
+
+                                Proveedor
+
+                            </h2>
+
+                            <small id="tituloProveedor">
+
+                                Registrar un nuevo proveedor.
+
+                            </small>
+
+                        </div>
+
+                        <button
+                            class="btn-close"
+                            onclick="cerrarFormulario()">
+
+                            <i class="bi bi-x-lg"></i>
+
+                        </button>
+
+                    </div>
+
+
+                    <div class="modal-body">
+
+                        <!-- =====================================
+                             INFORMACIÓN GENERAL
+                        ====================================== -->
+
+                        <div class="section">
+
+                            <h3>
+
+                                <i class="bi bi-person-vcard"></i>
+
+                                Información General
+
+                            </h3>
+
+                            <div class="grid-form">
+
+                                <div class="form-group">
+
+                                    <label for="nombreProveedor">
+
+                                        Nombre
+
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="nombreProveedor"
+                                        placeholder="Nombre del proveedor">
+
+                                </div>
+
+                                <div class="form-group">
+
+                                    <label for="telefonoProveedor">
+
+                                        Teléfono
+
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="telefonoProveedor"
+                                        placeholder="0981XXXXXX">
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- =====================================
+                             PRODUCTOS
+                        ====================================== -->
+
+                        <div class="section">
+
+                            <h3>
+
+                                <i class="bi bi-box-seam"></i>
+
+                                Productos Asociados
+
+                            </h3>
+
+                            <div class="search-product">
+
+                                <label for="buscarProductoProveedor">
+
+                                    Buscar producto
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="buscarProductoProveedor"
+                                    autocomplete="off"
+                                    placeholder="Escriba el nombre del producto...">
+
+                                <div id="resultadosProductos"></div>
+
+                            </div>
+
+
+                            <div class="table-container">
+
+                                <table>
+
+                                    <thead>
+                                    <tr>
+
+                                        <th>Proveedor</th>
+
+                                        <th>Teléfono</th>
+
+                                        <th>Productos</th>
+
+                                        <th>Total</th>
+
+                                        <th>Acciones</th>
+
+                                    </tr>
+                                    </thead>
+
+                                    <tbody id="listaProductos">
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- =====================================
+                             BOTONES
+                        ====================================== -->
+
+                        <div class="modal-actions">
+
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                onclick="cerrarFormulario()">
+
+                                <i class="bi bi-x-circle"></i>
+
+                                Cancelar
+
+                            </button>
+
+                            <button
+                                type="button"
+                                class="btn-primary"
+                                onclick="guardarProveedor()">
+
+                                <i class="bi bi-check-circle"></i>
+
+                                Guardar proveedor
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script>
+    const BASE_PATH = "../";
+</script>
+
+<script src="../js/sidebar.js"></script>
+<script src="../js/header.js"></script>
+
+<script>
+    cargarSidebar();
+    cargarHeader("Proveedores");
+</script>
+
+<script src="../js/proveedores.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const buscador = document.getElementById("buscarProveedor");
+
+    if (!buscador) return;
+
+    buscador.addEventListener("keyup", function () {
+
+        const texto = this.value.toLowerCase();
+
+        const filas = document.querySelectorAll("#tablaProveedores tr");
+
+        filas.forEach(fila => {
+
+            fila.style.display =
+                fila.innerText.toLowerCase().includes(texto)
+                ? ""
+                : "none";
+
+        });
+
+    });
+
+});
+</script>
+
+</body>
+
+</html>

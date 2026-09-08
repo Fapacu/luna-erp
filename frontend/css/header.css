@@ -1,0 +1,75 @@
+/* ===========================
+   HEADER
+=========================== */
+
+.header{
+    height: 70px;
+    background: var(--card);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+
+.header-left{
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header-left h1{
+    margin: 0;
+    font-size: 24px;
+    color: var(--text);
+}
+
+.header-right{
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header-icon{
+    font-size: 20px;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: .2s;
+}
+
+.header-icon:hover{
+    color: var(--primary);
+}
+
+.user-info{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar{
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.user-name{
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name strong{
+    font-size: 14px;
+    color: var(--text);
+}
+
+.user-name small{
+    color: var(--text-light);
+}
