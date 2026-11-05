@@ -4,29 +4,80 @@
     box-sizing:border-box;
 }
 
+html{
+    width:100%;
+    overflow-x:hidden;
+}
+
 body{
-    background: var(--background);
-    color: var(--text);
-    font-family: "Inter", sans-serif;
+    width:100%;
+    min-height:100vh;
+    background:var(--background);
+    color:var(--text);
+    font-family:"Inter", sans-serif;
+    overflow-x:hidden;
 }
 
 .layout{
     display:flex;
     min-height:100vh;
+    width:100%;
 }
 
 .main{
     flex:1;
     display:flex;
     flex-direction:column;
-
-    /* IMPORTANTE */
     margin-left:270px;
-
     min-height:100vh;
+    min-width:0;
+    transition:margin-left .25s ease;
 }
+
+body.sidebar-collapsed .main{margin-left:92px}
 
 .page{
     padding:30px;
     flex:1;
+    min-width:0;
+}
+
+/* ===========================
+   TABLET
+=========================== */
+
+@media (max-width: 1024px){
+
+    .main{
+        margin-left:270px;
+    }
+
+    body.sidebar-collapsed .main{margin-left:92px}
+
+    .page{
+        padding:20px;
+    }
+
+}
+
+/* ===========================
+   CELULAR
+=========================== */
+
+@media (max-width:768px){
+
+    body.sidebar-collapsed .main{margin-left:0}
+
+    .main{
+        margin-left:0;
+        width:100%;
+        min-width:0;
+    }
+
+    .page{
+        width:100%;
+        padding:15px;
+        min-width:0;
+    }
+
 }

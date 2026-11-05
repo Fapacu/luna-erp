@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db.models import Q
 from django.db import transaction
 from django.db.models import Sum
@@ -12,6 +12,8 @@ from inventario.models import Producto
 from inventario.services import registrar_movimiento
 from inventario.models import Producto
 from finanzas.services import registrar_ingreso
+from finanzas.services import registrar_egreso
+from usuarios.permissions import requiere_roles
 from .models import (
     Venta,
     DetalleVenta,
@@ -24,6 +26,23 @@ from .models import (
 )
 
 from .services import registrar_movimiento_caja
+
+
+def seleccionar_caja_abierta(request, requerida=True, bloquear=False):
+    """Resuelve la caja activa solicitada por el POS sin cruzar movimientos."""
+    caja_id = request.data.get("caja_id") or request.query_params.get("caja_id")
+    cajas = Caja.objects.filter(abierta=True)
+    if bloquear:
+        cajas = cajas.select_for_update()
+    if caja_id:
+        try:
+            return cajas.get(id=caja_id), None
+        except (Caja.DoesNotExist, ValueError):
+            return None, Response({"error": "La caja seleccionada no existe o está cerrada"}, status=400)
+    caja = cajas.filter(usuario=request.user).order_by("-id").first() or cajas.order_by("-id").first()
+    if requerida and not caja:
+        return None, Response({"error": "No hay caja abierta"}, status=400)
+    return caja, None
 
 
 # =========================================
@@ -39,7 +58,12 @@ def crear_venta(request):
 
         productos = request.data.get("productos", [])
         metodo_pago = request.data.get("metodo_pago", "EFECTIVO")
-        cliente_nombre = request.data.get("cliente_nombre", "").strip()
+        cliente_nombre = request.data.get("cliente_nombre", "")
+        cliente_nombre = cliente_nombre.strip() if isinstance(cliente_nombre, str) else ""
+
+        metodos_validos = {codigo for codigo, _ in Venta.METODOS}
+        if not isinstance(metodo_pago, str) or metodo_pago not in metodos_validos:
+            return Response({"error": "Método de pago inválido."}, status=400)
 
         if not productos:
 
@@ -53,21 +77,11 @@ def crear_venta(request):
                 "error": "Debe ingresar el nombre del cliente."
             }, status=400)
 
-        caja = Caja.objects.filter(
-            abierta=True
-        ).first()
-
-        if not caja:
-
-            return Response({
-                "error": "No hay caja abierta."
-            }, status=400)
-
         with transaction.atomic():
 
-            ultimo = Venta.objects.count() + 1
-
-            numero_ticket = f"TICKET-{ultimo:06d}"
+            caja, error = seleccionar_caja_abierta(request, bloquear=True)
+            if error:
+                return error
 
             venta = Venta.objects.create(
 
@@ -77,8 +91,6 @@ def crear_venta(request):
 
                 metodo_pago=metodo_pago,
 
-                numero_ticket=numero_ticket,
-
                 total=0
 
             )
@@ -87,13 +99,24 @@ def crear_venta(request):
 
             for item in productos:
 
-                producto = Producto.objects.get(
-                    id=item["id"]
-                )
+                if not isinstance(item, dict):
+                    transaction.set_rollback(True)
+                    return Response({"error": "Detalle de producto inválido."}, status=400)
 
-                cantidad = Decimal(str(item["cantidad"]))
+                try:
+                    producto = Producto.objects.select_for_update().get(id=item["id"], activo=True)
+                    cantidad = Decimal(str(item["cantidad"]))
+                except (KeyError, ValueError, TypeError, Producto.DoesNotExist):
+                    transaction.set_rollback(True)
+                    return Response({"error": "Producto o cantidad inválida."}, status=400)
+
+                if not cantidad.is_finite() or cantidad <= 0 or cantidad.as_tuple().exponent < -3:
+                    transaction.set_rollback(True)
+                    return Response({"error": "La cantidad debe ser positiva y tener hasta tres decimales."}, status=400)
 
                 if producto.stock < cantidad:
+
+                    transaction.set_rollback(True)
 
                     return Response({
 
@@ -102,12 +125,13 @@ def crear_venta(request):
 
                     }, status=400)
 
+                costo_unitario = Decimal(str(producto.costo_promedio or producto.precio_compra))
                 precio = Decimal(str(producto.precio_venta))
 
                 subtotal = precio * cantidad
 
                 ganancia = (
-                    precio - producto.precio_compra
+                    precio - costo_unitario
                 ) * cantidad
 
                 DetalleVenta.objects.create(
@@ -120,7 +144,7 @@ def crear_venta(request):
 
                     precio_venta=precio,
 
-                    precio_compra=producto.precio_compra,
+                    precio_compra=costo_unitario,
 
                     subtotal=subtotal,
 
@@ -128,10 +152,7 @@ def crear_venta(request):
 
                 )
 
-                # Descontar stock
-                producto.stock -= cantidad
-                producto.save()
-
+                # El servicio aplica el descuento y registra el movimiento una sola vez.
                 registrar_movimiento(
 
                     producto=producto,
@@ -149,6 +170,7 @@ def crear_venta(request):
                 total += subtotal
 
             venta.total = total
+            venta.numero_ticket = f"TICKET-{venta.id:06d}"
             venta.save()
 
             # ==========================
@@ -157,7 +179,7 @@ def crear_venta(request):
 
             if metodo_pago == "LIBRETA":
 
-                cuenta = CuentaPorCobrar.objects.filter(
+                cuenta = CuentaPorCobrar.objects.select_for_update().filter(
 
                     cliente_nombre__iexact=cliente_nombre,
 
@@ -217,19 +239,20 @@ def crear_venta(request):
 
                 )
 
-                registrar_movimiento_caja(
+                if metodo_pago == "EFECTIVO":
+                    registrar_movimiento_caja(
 
-                    caja=caja,
+                        caja=caja,
 
-                    tipo="INGRESO",
+                        tipo="INGRESO",
 
-                    descripcion=f"Venta #{venta.id}",
+                        descripcion=f"Venta #{venta.id}",
 
-                    monto=total,
+                        monto=total,
 
-                    usuario=request.user
+                        usuario=request.user
 
-                )
+                    )
 
             from auditoria.services import registrar_auditoria
 
@@ -259,15 +282,14 @@ def crear_venta(request):
 
             })
 
-    except Exception as e:
+    except Exception:
 
-        import traceback
-
-        traceback.print_exc()
+        import logging
+        logging.getLogger(__name__).exception("No se pudo registrar la venta")
 
         return Response({
 
-            "error": str(e)
+            "error": "No se pudo registrar la venta. Verifica los datos y vuelve a intentar."
 
         }, status=500)
 
@@ -308,47 +330,81 @@ def historial_ventas(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-
 def anular_venta(request, venta_id):
-
+    requiere_roles(request.user, "ADMIN", "GERENTE")
     try:
-
-        venta = Venta.objects.get(id=venta_id)
-
-        if venta.estado == "ANULADA":
-
-            return Response({
-                "error": "La venta ya está anulada"
-            }, status=400)
-
         with transaction.atomic():
+            venta = Venta.objects.select_for_update().get(id=venta_id)
+            if venta.estado != "COMPLETADA":
+                return Response({"error": "Solo se pueden anular ventas completadas."}, status=400)
 
-            detalles = DetalleVenta.objects.filter(
-                venta=venta
-            )
-
-            for d in detalles:
-
+            detalles = DetalleVenta.objects.filter(venta=venta).select_related("producto")
+            for detalle in detalles:
+                producto = Producto.objects.select_for_update().get(id=detalle.producto_id)
                 registrar_movimiento(
-                    producto=d.producto,
+                    producto=producto,
                     tipo="AJUSTE",
-                    cantidad=d.cantidad,
+                    cantidad=detalle.cantidad,
                     usuario=request.user,
-                    motivo=f"Anulación venta #{venta.id}"
+                    motivo=f"Anulación venta #{venta.id}",
+                )
+
+            if venta.metodo_pago == "LIBRETA":
+                movimiento = MovimientoLibreta.objects.filter(
+                    venta=venta, tipo="COMPRA"
+                ).select_related("cuenta").first()
+                if movimiento:
+                    cuenta = CuentaPorCobrar.objects.select_for_update().get(id=movimiento.cuenta_id)
+                    if cuenta.pagado > 0:
+                        transaction.set_rollback(True)
+                        return Response({"error": "No se puede anular: la cuenta asociada ya tiene pagos. Regulariza la libreta primero."}, status=400)
+                    cuenta.total = max(Decimal("0"), cuenta.total - venta.total)
+                    cuenta.saldo = max(Decimal("0"), cuenta.saldo - venta.total)
+                    cuenta.cancelada = cuenta.saldo == 0
+                    cuenta.save(update_fields=["total", "saldo", "cancelada"])
+            else:
+                caja_reembolso, error = seleccionar_caja_abierta(request)
+                if venta.metodo_pago == "EFECTIVO" and error:
+                    transaction.set_rollback(True)
+                    return Response({"error": "Abre o selecciona una caja para registrar la devolución en efectivo."}, status=400)
+                if venta.metodo_pago == "EFECTIVO":
+                    registrar_movimiento_caja(
+                        caja=caja_reembolso,
+                        tipo="RETIRO",
+                        descripcion=f"Devolución por anulación de venta #{venta.id}",
+                        monto=venta.total,
+                        usuario=request.user,
+                    )
+                registrar_egreso(
+                    categoria="OTRO",
+                    descripcion=f"Reversión de venta anulada #{venta.id}",
+                    monto=venta.total,
+                    usuario=request.user,
+                    metodo_pago=venta.metodo_pago,
+                    referencia=venta.numero_ticket or str(venta.id),
                 )
 
             venta.estado = "ANULADA"
-            venta.save()
+            venta.save(update_fields=["estado"])
+            from auditoria.services import registrar_auditoria
+            registrar_auditoria(
+                usuario=request.user,
+                modulo="VENTAS",
+                accion="ANULAR_VENTA",
+                referencia=f"Venta #{venta.id}",
+                detalle=f"Total reversado: {venta.total}",
+            )
 
         return Response({
             "success": True
         })
 
-    except Exception as e:
-
-        return Response({
-            "error": str(e)
-        }, status=500)
+    except Venta.DoesNotExist:
+        return Response({"error": "Venta no encontrada."}, status=404)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudo anular la venta")
+        return Response({"error": "No se pudo anular la venta."}, status=500)
 
 
 # =========================================
@@ -359,31 +415,13 @@ def anular_venta(request, venta_id):
 @permission_classes([IsAuthenticated])
 
 def abrir_caja(request):
-
-    data = request.data
-
-    abierta = Caja.objects.filter(
-        abierta=True
-    ).exists()
-
-    if abierta:
-
-        return Response({
-            "error": "Ya existe una caja abierta"
-        }, status=400)
-
-    monto_inicial = Decimal(
-        str(request.data.get("monto_inicial", 0))
-    )
-
-    caja = Caja.objects.create(
-
-        usuario=request.user,
-
-        monto_inicial=data["monto_inicial"],
-
-        abierta=True
-    )
+    try:
+        monto_inicial = Decimal(str(request.data.get("monto_inicial", 0)))
+        if not monto_inicial.is_finite() or monto_inicial < 0:
+            raise ValueError
+    except (InvalidOperation, TypeError, ValueError):
+        return Response({"error": "Monto inicial inválido"}, status=400)
+    caja = Caja.objects.create(usuario=request.user, monto_inicial=monto_inicial, abierta=True)
 
     return Response({
         "success": True,
@@ -399,38 +437,22 @@ def abrir_caja(request):
 @permission_classes([IsAuthenticated])
 
 def caja_actual(request):
-
-    caja = Caja.objects.filter(
-        abierta=True
-    ).first()
+    caja, error = seleccionar_caja_abierta(request, requerida=False)
 
     if not caja:
 
         return Response({
             "error": "No hay caja abierta"
-        })
+        }, status=400)
 
-    movimientos = MovimientoCaja.objects.filter(
-        caja=caja
-    )
-
-    ingresos = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "INGRESO"
-    )
-
-    retiros = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "RETIRO"
-    )
-
-    gastos = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "GASTO"
-    )
+    resumen = {
+        item["tipo"]: item["total"] or Decimal("0")
+        for item in MovimientoCaja.objects.filter(caja=caja)
+        .values("tipo").annotate(total=Sum("monto"))
+    }
+    ingresos = resumen.get("INGRESO", Decimal("0"))
+    retiros = resumen.get("RETIRO", Decimal("0"))
+    gastos = resumen.get("GASTO", Decimal("0"))
 
     monto_actual = (
         Decimal(str(caja.monto_inicial))
@@ -441,6 +463,8 @@ def caja_actual(request):
 
     return Response({
 
+        "caja_id": caja.id,
+        "usuario": caja.usuario.username,
         "monto_inicial": float(caja.monto_inicial),
         "ingresos": float(ingresos),
         "retiros": float(retiros),
@@ -460,35 +484,29 @@ def retiro_caja(request):
 
     try:
 
-        caja = Caja.objects.filter(
-            abierta=True
-        ).first()
-
-        if not caja:
-
-            return Response({
-                "error": "No hay caja abierta"
-            }, status=400)
-
         data = request.data
+        descripcion = data.get("descripcion", "")
+        try:
+            monto = Decimal(str(data.get("monto", "")))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Monto inválido"}, status=400)
+        if not isinstance(descripcion, str) or not descripcion.strip() or not monto.is_finite() or monto <= 0:
+            return Response({"error": "Descripción y monto positivo son obligatorios"}, status=400)
 
-        registrar_movimiento_caja(
-            caja=caja,
-            tipo="RETIRO",
-            descripcion=data["descripcion"],
-            monto=data["monto"],
-            usuario=request.user
-        )
+        with transaction.atomic():
+            caja, error = seleccionar_caja_abierta(request, bloquear=True)
+            if error:
+                return error
+            registrar_movimiento_caja(caja=caja, tipo="RETIRO", descripcion=descripcion.strip(), monto=monto, usuario=request.user)
 
         return Response({
             "success": True
         })
 
-    except Exception as e:
-
-        return Response({
-            "error": str(e)
-        }, status=500)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudo registrar el retiro de caja")
+        return Response({"error": "No se pudo registrar el retiro."}, status=500)
 
 
 # =========================================
@@ -502,35 +520,37 @@ def gasto_caja(request):
 
     try:
 
-        caja = Caja.objects.filter(
-            abierta=True
-        ).first()
-
-        if not caja:
-
-            return Response({
-                "error": "No hay caja abierta"
-            }, status=400)
-
         data = request.data
+        descripcion = data.get("descripcion", "")
+        try:
+            monto = Decimal(str(data.get("monto", "")))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Monto inválido"}, status=400)
+        if not isinstance(descripcion, str) or not descripcion.strip() or not monto.is_finite() or monto <= 0:
+            return Response({"error": "Descripción y monto positivo son obligatorios"}, status=400)
 
-        registrar_movimiento_caja(
-            caja=caja,
-            tipo="GASTO",
-            descripcion=data["descripcion"],
-            monto=data["monto"],
-            usuario=request.user
-        )
+        with transaction.atomic():
+            caja, error = seleccionar_caja_abierta(request, bloquear=True)
+            if error:
+                return error
+            registrar_movimiento_caja(caja=caja, tipo="GASTO", descripcion=descripcion.strip(), monto=monto, usuario=request.user)
+            registrar_egreso(
+                categoria="GASTO",
+                descripcion=descripcion.strip(),
+                monto=monto,
+                usuario=request.user,
+                metodo_pago="EFECTIVO",
+                referencia=f"Caja #{caja.id}",
+            )
 
         return Response({
             "success": True
         })
 
-    except Exception as e:
-
-        return Response({
-            "error": str(e)
-        }, status=500)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudo registrar el gasto de caja")
+        return Response({"error": "No se pudo registrar el gasto."}, status=500)
 
 
 # =========================================
@@ -541,74 +561,48 @@ def gasto_caja(request):
 @permission_classes([IsAuthenticated])
 
 def cerrar_caja(request):
+    try:
+        monto_real = Decimal(str(request.data.get("monto_real", "")))
+        if not monto_real.is_finite() or monto_real < 0:
+            raise ValueError
+    except (InvalidOperation, TypeError, ValueError):
+        return Response({"error": "Monto contado inválido"}, status=400)
 
-    caja = Caja.objects.filter(
-        abierta=True
-    ).first()
+    with transaction.atomic():
+        caja, error = seleccionar_caja_abierta(request, bloquear=True)
+        if error:
+            return error
+        ventas_total = Venta.objects.filter(
+            caja=caja, estado="COMPLETADA"
+        ).aggregate(total=Sum("total"))["total"] or Decimal("0")
+        resumen = {
+            item["tipo"]: item["total"] or Decimal("0")
+            for item in MovimientoCaja.objects.filter(caja=caja)
+            .values("tipo").annotate(total=Sum("monto"))
+        }
+        monto_sistema = (
+            caja.monto_inicial + resumen.get("INGRESO", Decimal("0"))
+            - resumen.get("RETIRO", Decimal("0"))
+            - resumen.get("GASTO", Decimal("0"))
+        )
+        diferencia = monto_real - monto_sistema
+        caja.total_vendido = ventas_total
+        caja.monto_cierre = monto_real
+        caja.diferencia = diferencia
+        caja.fecha_cierre = now()
+        caja.abierta = False
+        caja.save(update_fields=["total_vendido", "monto_cierre", "diferencia", "fecha_cierre", "abierta"])
+        from auditoria.services import registrar_auditoria
+        registrar_auditoria(
+            usuario=request.user,
+            modulo="CAJA",
+            accion="CERRAR_CAJA",
+            referencia=f"Caja #{caja.id}",
+            detalle=f"Sistema: {monto_sistema}; contado: {monto_real}; diferencia: {diferencia}",
+        )
 
-    if not caja:
-
-        return Response({
-            "error": "No hay caja abierta"
-        }, status=400)
-
-    ventas = Venta.objects.filter(
-        caja=caja
-    )
-
-    total_vendido = ventas.aggregate(
-        total=Sum('total')
-    )['total'] or 0
-
-    movimientos = MovimientoCaja.objects.filter(
-        caja=caja
-    )
-
-    ingresos = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "INGRESO"
-    )
-
-    retiros = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "RETIRO"
-    )
-
-    gastos = sum(
-        m.monto
-        for m in movimientos
-        if m.tipo == "GASTO"
-    )
-
-    monto_sistema = (
-        Decimal(str(caja.monto_inicial))
-        + Decimal(str(ingresos))
-        - Decimal(str(retiros))
-        - Decimal(str(gastos))
-    )
-
-    monto_real = Decimal(
-        str(request.data.get("monto_real", 0))
-    )
-
-    diferencia = monto_real - monto_sistema
-
-    caja.total_vendido = total_vendido
-    caja.monto_cierre = monto_real
-    caja.diferencia = diferencia
-    caja.fecha_cierre = now()
-    caja.abierta = False
-
-    caja.save()
-
-    return Response({
-
-        "monto_sistema": float(monto_sistema),
-        "monto_real": float(monto_real),
-        "diferencia": float(diferencia)
-    })
+    return Response({"caja_id": caja.id, "monto_sistema": float(monto_sistema),
+                     "monto_real": float(monto_real), "diferencia": float(diferencia)})
 
 # =========================================
 # HISTORIAL CAJAS
@@ -648,14 +642,8 @@ def historial_cajas(request):
 @permission_classes([IsAuthenticated])
 
 def estado_caja(request):
-
-    abierta = Caja.objects.filter(
-        abierta=True
-    ).exists()
-
-    return Response({
-        "abierta": abierta
-    })
+    cajas = Caja.objects.filter(abierta=True).select_related("usuario").order_by("id")
+    return Response({"abierta": cajas.exists(), "cajas": [{"id": c.id, "usuario": c.usuario.username, "fecha_apertura": c.fecha_apertura, "seleccionada": False} for c in cajas]})
 
 # =========================================
 # CLIENTES ERP
@@ -914,13 +902,18 @@ def cliente_detalle(request, id):
         })
     
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def buscar_productos(request):
 
-    q = request.GET.get('q')
+    q = request.query_params.get('q', '').strip()
+    if not q:
+        return Response([])
 
     productos = Producto.objects.filter(
-        codigo_barras__icontains=q
-    )
+        codigo_barra__icontains=q,
+        activo=True,
+    )[:20]
 
     data = []
 
@@ -929,18 +922,23 @@ def buscar_productos(request):
         data.append({
             'id': p.id,
             'nombre': p.nombre,
-            'precio': float(p.precio_venta),
-            'stock': p.stock,
+            'precio_venta': float(p.precio_venta),
+            'stock': float(p.stock),
             'unidad': p.unidad
         })
 
     return JsonResponse(data, safe=False)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def imprimir_ticket(request, venta_id):
-    venta = Venta.objects.get(id=venta_id)
+    try:
+        venta = Venta.objects.select_related("usuario", "caja").get(id=venta_id)
+    except Venta.DoesNotExist:
+        return Response({"error": "Venta no encontrada."}, status=404)
 
-    detalles = venta.detalles.all()
+    detalles = venta.detalleventa_set.select_related("producto").all()
 
     html = render_to_string('ticket.html', {
         'venta': venta,
@@ -1066,134 +1064,41 @@ def detalle_libreta(request, id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cobrar_libreta(request, id):
-
     try:
+        monto = Decimal(str(request.data.get("monto", "")))
+        if not monto.is_finite() or monto <= 0:
+            raise ValueError
+    except (InvalidOperation, TypeError, ValueError):
+        return Response({"error": "Monto inválido"}, status=400)
 
-        cuenta = CuentaPorCobrar.objects.get(
-            id=id
-        )
-
-    except CuentaPorCobrar.DoesNotExist:
-
-        return Response(
-            {"error": "Cuenta no encontrada"},
-            status=404
-        )
-
-    monto = Decimal(
-        str(
-            request.data.get(
-                "monto",
-                0
-            )
-        )
-    )
-
-    if monto <= 0:
-
-        return Response(
-            {"error":"Monto inválido"},
-            status=400
-        )
-
-    if monto > cuenta.saldo:
-
-        return Response(
-            {
-                "error":
-                "El pago supera el saldo"
-            },
-            status=400
-        )
-
-    PagoCuentaPorCobrar.objects.create(
-
-        cuenta=cuenta,
-
-        monto=monto
-
-    )
-
-    cuenta.pagado += monto
-
-    cuenta.saldo -= monto
-
-    if cuenta.saldo <= 0:
-
-        cuenta.saldo = 0
-
-        cuenta.cancelada = True
-
-    cuenta.save()
-
-    # Registrar movimiento en historial de libreta
-
-    MovimientoLibreta.objects.create(
-
-        cuenta=cuenta,
-
-        tipo="PAGO",
-
-        monto=monto
-
-    )
-
-    # Obtener caja abierta
-
-    caja = Caja.objects.filter(
-
-        abierta=True
-
-    ).first()
-
-    if caja:
-
+    with transaction.atomic():
+        try:
+            cuenta = CuentaPorCobrar.objects.select_for_update().get(id=id)
+        except CuentaPorCobrar.DoesNotExist:
+            return Response({"error": "Cuenta no encontrada"}, status=404)
+        if monto > cuenta.saldo:
+            return Response({"error": "El pago supera el saldo"}, status=400)
+        caja, error = seleccionar_caja_abierta(request, bloquear=True)
+        if error:
+            return error
+        PagoCuentaPorCobrar.objects.create(cuenta=cuenta, monto=monto)
+        cuenta.pagado += monto
+        cuenta.saldo -= monto
+        cuenta.cancelada = cuenta.saldo == 0
+        cuenta.save(update_fields=["pagado", "saldo", "cancelada"])
+        MovimientoLibreta.objects.create(cuenta=cuenta, tipo="PAGO", monto=monto)
         registrar_movimiento_caja(
-
-            caja=caja,
-
-            tipo="INGRESO",
-
+            caja=caja, tipo="INGRESO",
             descripcion=f"Cobro libreta - {cuenta.cliente_nombre}",
-
-            monto=monto,
-
-            usuario=request.user
-
+            monto=monto, usuario=request.user,
+        )
+        registrar_ingreso(
+            categoria="VENTA", descripcion=f"Cobro libreta - {cuenta.cliente_nombre}",
+            monto=monto, usuario=request.user, metodo_pago="EFECTIVO",
+            referencia=f"Cuenta #{cuenta.id}",
         )
 
-    registrar_ingreso(
-
-        categoria="COBRO LIBRETA",
-
-        descripcion=f"Cobro de {cuenta.cliente_nombre}",
-
-        monto=monto,
-
-        usuario=request.user,
-
-        metodo_pago="EFECTIVO",
-
-        referencia=f"LIB-{cuenta.id}"
-
-    )
-
-    return Response({
-
-        "ok": True,
-
-        "saldo":
-        float(cuenta.saldo),
-
-        "pagado":
-        float(cuenta.pagado),
-
-        "cancelada":
-        cuenta.cancelada
-
-    })
-
-    
+    return Response({"success": True, "saldo": float(cuenta.saldo)})
 
 # =========================================
 # BUSCAR LIBRETAS
@@ -1596,15 +1501,7 @@ def reportes(request):
 
         })
 
-    except Exception as e:
-
-        import traceback
-
-        traceback.print_exc()
-
-        return Response({
-
-            "error":
-            str(e)
-
-        }, status=500)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudo generar el reporte de ventas")
+        return Response({"error": "No se pudo generar el reporte solicitado."}, status=500)

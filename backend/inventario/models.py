@@ -44,8 +44,6 @@ class Producto(models.Model):
     imagen = models.ImageField(upload_to="productos/", null=True, blank=True)
     unidad = models.CharField(max_length=10, default="unidad")
     activo = models.BooleanField(default=True)
-
-
     categoria = models.ForeignKey(
     Categoria,
     on_delete=models.SET_NULL,

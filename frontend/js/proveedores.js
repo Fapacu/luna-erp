@@ -1,9 +1,9 @@
-/* =====================================================
+﻿/* =====================================================
    LUNA ERP
    MÓDULO PROVEEDORES
 ===================================================== */
 
-const API = "http://127.0.0.1:8000/api";
+const API = window.API_BASE_URL;
 const token = localStorage.getItem("token");
 
 /* =====================================================
@@ -386,7 +386,7 @@ function renderTabla(lista = proveedores){
                             title="Abrir conversación en WhatsApp">
 
                             <i class="bi bi-whatsapp"></i>
-                            ${proveedor.telefono}
+                            ${escaparHTML(proveedor.telefono)}
 
                         </a>
                     `
@@ -862,3 +862,8 @@ window.quitarProductoProveedor = quitarProductoProveedor;
 ===================================================== */
 
 console.log("Módulo Proveedores cargado correctamente.");
+
+
+
+
+

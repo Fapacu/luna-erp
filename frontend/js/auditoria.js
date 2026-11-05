@@ -1,5 +1,5 @@
-const API =
-"http://127.0.0.1:8000/api/auditoria"
+﻿const API =
+window.apiUrl("auditoria/")
 
 const token =
 localStorage.getItem("token")
@@ -31,10 +31,13 @@ function convertirFecha(fecha) {
 
 async function cargarAuditoria(){
 
+    const tabla = document.getElementById("tablaAuditoria");
+    const total = document.getElementById("totalRegistros");
+
     try{
 
         const response = await fetch(
-            API + "/",
+            API,
             {
                 headers:{
                     "Authorization":
@@ -43,12 +46,17 @@ async function cargarAuditoria(){
             }
         )
 
+        if (!response.ok) {
+            throw new Error(response.status === 401 || response.status === 403
+                ? "Tu sesión venció o no tienes permiso para consultar la auditoría."
+                : `El servidor respondió con error (${response.status}).`);
+        }
+
         const data = await response.json()
 
-        const tabla =
-            document.getElementById(
-                "tablaAuditoria"
-            )
+        if (!Array.isArray(data)) {
+            throw new Error("El servidor devolvió un formato de auditoría inesperado.");
+        }
 
         tabla.innerHTML = ""
 
@@ -86,8 +94,8 @@ async function cargarAuditoria(){
                 .toLowerCase()
 
 
-            const fechaRegistro =
-                convertirFecha(r.fecha)
+            const fechaRegistro = convertirFecha(r.fecha)
+            if (Number.isNaN(fechaRegistro.getTime())) return false
 
 
             // FILTRO DESDE
@@ -143,15 +151,15 @@ async function cargarAuditoria(){
 
                 <td>${r.fecha}</td>
 
-                <td>${r.usuario}</td>
+                <td>${window.escapeHtml(r.usuario)}</td>
 
-                <td>${r.modulo}</td>
+                <td>${window.escapeHtml(r.modulo)}</td>
 
-                <td>${r.accion}</td>
+                <td>${window.escapeHtml(r.accion)}</td>
 
-                <td>${r.referencia || "-"}</td>
+                <td>${window.escapeHtml(r.referencia || "-")}</td>
 
-                <td>${r.detalle || "-"}</td>
+                <td>${window.escapeHtml(r.detalle || "-")}</td>
 
             </tr>
 
@@ -160,18 +168,19 @@ async function cargarAuditoria(){
         })
 
 
-        document
-        .getElementById(
-            "totalRegistros"
-        )
-        .innerText =
-        registros.length
+        total.innerText = registros.length
+
+        if (registros.length === 0) {
+            tabla.innerHTML = '<tr><td colspan="7">No hay registros que coincidan con la búsqueda.</td></tr>'
+        }
 
     }
 
     catch(error){
 
         console.error(error)
+        tabla.innerHTML = `<tr><td colspan="7">${window.escapeHtml(error.message || "No se pudo cargar la auditoría.")}</td></tr>`
+        total.innerText = "—"
 
     }
 
@@ -184,3 +193,8 @@ document.addEventListener(
         cargarAuditoria()
     }
 )
+
+
+
+
+

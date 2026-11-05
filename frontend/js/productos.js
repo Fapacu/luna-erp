@@ -1,9 +1,12 @@
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
 
 const tabla = document.getElementById("tablaProductos")
 const inputBuscar = document.getElementById("buscarProducto")
 
 const token = localStorage.getItem("token")
+const API = window.API_BASE_URL
+const escapeHtml = window.escapeHtml
+const puedeGestionar = ["ADMIN", "GERENTE"].includes(localStorage.getItem("rol"))
 
 /* ======================
 CARGAR PRODUCTOS
@@ -13,7 +16,9 @@ function cargarProductos(){
 
 const buscar = inputBuscar ? inputBuscar.value : ""
 
-fetch(`http://127.0.0.1:8000/api/inventario/buscar/?q=${buscar}`, {
+const filtroArchivados = puedeGestionar ? "&incluir_inactivos=1" : ""
+
+fetch(`${API}/inventario/buscar/?q=${encodeURIComponent(buscar)}${filtroArchivados}`, {
     headers:{
         "Authorization": "Bearer " + token
     }
@@ -34,23 +39,21 @@ const unidadTexto = p.unidad === "kg" ? "kg" : "u"
 tabla.innerHTML += `
 <tr>
 <td>${p.id}</td>
-<td>${p.nombre}</td>
-<td>$${Number(p.precio_venta || 0).toLocaleString('es-CL')}</td>
+<td>${escapeHtml(p.nombre)}</td>
+<td>Gs. ${Number(p.precio_venta || 0).toLocaleString('es-PY')}</td>
 
 <td class="${stockClase}">
 ${p.stock} ${unidadTexto}
 </td>
 
-<td>
-${p.stock <= stockMin ? "⚠ Bajo" : "✔ OK"}
-</td>
+<td>${!p.activo ? "Archivado" : p.stock <= stockMin ? "Stock bajo" : "Disponible"}</td>
 
 <td>${stockMin}</td>
 
 <td>
-<button onclick="editarProducto(${p.id})">✏</button>
-<button onclick="eliminarProducto(${p.id})">🗑</button>
-<button onclick="abrirModal(${p.id})">⚙</button>
+${puedeGestionar ? `<button type="button" title="Editar producto" aria-label="Editar producto ${escapeHtml(p.nombre)}" onclick="editarProducto(${p.id})"><i class="bi bi-pencil-square"></i></button>
+<button type="button" title="${p.activo ? "Archivar" : "Reactivar"} producto" aria-label="${p.activo ? "Archivar" : "Reactivar"} producto ${escapeHtml(p.nombre)}" onclick="cambiarEstadoProducto(${p.id}, ${!p.activo})"><i class="bi ${p.activo ? "bi-archive" : "bi-arrow-counterclockwise"}"></i></button>
+${p.activo ? `<button type="button" title="Ajustar stock" aria-label="Ajustar stock de ${escapeHtml(p.nombre)}" onclick="abrirModal(${p.id})"><i class="bi bi-sliders"></i></button>` : ""}` : ""}
 </td>
 </tr>
 `
@@ -97,7 +100,7 @@ const stock = document.getElementById("stockProducto").value
 const stock_minimo = document.getElementById("stockMinimoProducto").value
 const unidad = document.getElementById("unidadProducto").value
 
-fetch("http://127.0.0.1:8000/api/inventario/productos/",{
+fetch(`${API}/inventario/productos/`,{
     method:"POST",
     headers:{
         "Content-Type":"application/json",
@@ -127,7 +130,7 @@ EDITAR PRODUCTO (GET)
 
 window.editarProducto = function(id){
 
-fetch(`http://127.0.0.1:8000/api/inventario/productos/${id}/`,{
+fetch(`${API}/inventario/productos/${id}/`,{
     method:"GET",
     headers:{
         "Authorization": "Bearer " + token
@@ -170,7 +173,7 @@ const precio_venta = document.getElementById("editarPrecioVenta").value
 const stock_minimo = document.getElementById("editarStockminimo").value
 const unidad = document.getElementById("editarUnidad").value
 
-fetch(`http://127.0.0.1:8000/api/inventario/productos/${id}/`,{
+fetch(`${API}/inventario/productos/${id}/`,{
     method:"PUT",
     headers:{
         "Content-Type":"application/json",
@@ -205,11 +208,32 @@ document.getElementById("modalEditarProducto").style.display="none"
 ELIMINAR
 ====================== */
 
+window.cambiarEstadoProducto = function(id, activar){
+
+const accion = activar ? "reactivar" : "archivar"
+if(!confirm(`¿Deseas ${accion} este producto? El historial se conservará.`)) return
+
+fetch(`${API}/inventario/productos/${id}/`,{
+    method:"PUT",
+    headers:{
+        "Content-Type":"application/json",
+        "Authorization": "Bearer " + token
+    },
+    body: JSON.stringify({activo: activar})
+})
+.then(res => {
+    if(!res.ok) throw new Error("No se pudo cambiar el estado del producto")
+    return res.json()
+})
+.then(() => cargarProductos())
+.catch(error => alert(error.message))
+}
+
 window.eliminarProducto = function(id){
 
-if(!confirm("¿Eliminar producto?")) return
+if(!confirm("¿Archivar producto? El historial se conservará.")) return
 
-fetch(`http://127.0.0.1:8000/api/inventario/productos/${id}/`,{
+fetch(`${API}/inventario/productos/${id}/`,{
     method:"DELETE",
     headers:{
         "Authorization": "Bearer " + token
@@ -241,10 +265,22 @@ document.getElementById("modalStock").style.display = "none"
 
 window.guardarAjuste = function(){
 
-const cantidad = document.getElementById("cantidad").value
-const motivo = document.getElementById("motivo").value
+const cantidad = document.getElementById("cantidad").value.trim()
+const motivo = document.getElementById("motivo").value.trim()
 
-fetch("http://127.0.0.1:8000/api/inventario/ajustar-stock/", {
+if (!cantidad || !Number.isFinite(Number(cantidad)) || Number(cantidad) === 0) {
+    alert("Ingresa una cantidad válida distinta de cero.")
+    document.getElementById("cantidad").focus()
+    return
+}
+
+if (!motivo) {
+    alert("El motivo es obligatorio para ajustar el stock.")
+    document.getElementById("motivo").focus()
+    return
+}
+
+fetch(`${API}/inventario/ajustar-stock/`, {
     method:"POST",
     headers:{
         "Content-Type":"application/json",
@@ -252,14 +288,21 @@ fetch("http://127.0.0.1:8000/api/inventario/ajustar-stock/", {
     },
     body: JSON.stringify({
         producto_id: productoActual,
-        cantidad: parseInt(cantidad),
+        cantidad: cantidad,
         motivo: motivo
     })
 })
-.then(res => res.json())
-.then(() => {
+.then(async res => {
+    const data = await res.json()
+    if (!res.ok) {
+        throw new Error(data.error || "No se pudo actualizar el stock.")
+    }
+    alert(data.msg || "Stock actualizado correctamente.")
     cerrarModal()
     cargarProductos()
+})
+.catch(error => {
+    alert(error.message || "Error al conectar con el servidor.")
 })
 
 }

@@ -1,4 +1,4 @@
-let carrito = [];
+﻿let carrito = [];
 let total = 0;
 
 document.getElementById("usuarioInfo").innerText =
@@ -30,7 +30,7 @@ input.addEventListener("keyup", function() {
 
     
 
-    fetch(`http://127.0.0.1:8000/api/inventario/buscar/${termino}/`)
+    fetch(`https://berry-previews-compensation-big.trycloudflare.com/api/inventario/buscar/${termino}/`)
         .then(res => res.json())
         .then(data => {
             resultadosDiv.innerHTML = "";
@@ -115,7 +115,7 @@ function finalizarVenta() {
 
     }
     console.log(clienteSeleccionado);
-    fetch("http://127.0.0.1:8000/api/ventas/crear/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/ventas/crear/", {
     method: "POST",
     headers: {
         "Content-Type": "application/json",
@@ -209,7 +209,7 @@ function generarTicket() {
 
 function verCierre() {
 
-    fetch("http://127.0.0.1:8000/api/ventas/cierre/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/ventas/cierre/", {
         method: "GET",
         headers: {
             "Authorization": "Bearer " + localStorage.getItem("token")
@@ -236,7 +236,7 @@ Transferencia: ${data.transferencia}
 
 function abrirCaja() {
 
-    fetch("http://127.0.0.1:8000/api/ventas/abrir-caja/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/ventas/abrir-caja/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -253,7 +253,7 @@ function abrirCaja() {
 
 function cerrarCaja() {
 
-    fetch("http://127.0.0.1:8000/api/ventas/cerrar-caja/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/ventas/cerrar-caja/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -334,7 +334,7 @@ async function buscarLibreta(){
 
     const res = await fetch(
 
-        `http://127.0.0.1:8000/api/ventas/libreta/buscar/?q=${texto}`,
+        `https://berry-previews-compensation-big.trycloudflare.com/api/ventas/libreta/buscar/?q=${texto}`,
 
         {
 
@@ -380,7 +380,7 @@ async function buscarLibreta(){
 
             onclick="crearClienteNuevo()">
 
-            ➕ Crear libreta para
+            âž• Crear libreta para
 
             <strong>${texto}</strong>
 
@@ -415,3 +415,8 @@ function crearClienteNuevo(){
     document.getElementById("sugerenciasLibreta").innerHTML = "";
 
 }
+
+
+
+
+

@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+from django.db import transaction
 from auditoria.services import registrar_auditoria
 from .models import Role, UsuarioPerfil
 from .permissions import requiere_roles
@@ -39,9 +40,19 @@ def cantidad_administradores():
         user__is_active=True
     ).count()
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def listar_roles(request):
+    requiere_roles(request.user, "ADMIN")
+    roles = Role.objects.filter(nombre__in=["ADMIN", "GERENTE", "CAJERO"]).order_by("id")
+    return Response([{"id": role.id, "nombre": role.nombre} for role in roles])
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def listar_usuarios(request):
+
+    requiere_roles(request.user, "ADMIN")
 
     usuarios = []
 
@@ -49,7 +60,7 @@ def listar_usuarios(request):
         "user",
         "role"
     ).filter(
-        role__nombre__in=["ADMIN", "CAJERO"]
+        role__nombre__in=["ADMIN", "GERENTE", "CAJERO"]
     )
 
     for perfil in perfiles:
@@ -66,7 +77,8 @@ def listar_usuarios(request):
 
             "is_active": user.is_active,
 
-            "rol": perfil.role.nombre
+            "rol": perfil.role.nombre,
+            "role_id": perfil.role_id,
 
         })
 
@@ -79,7 +91,8 @@ def crear_usuario(request):
 
     requiere_roles(request.user, "ADMIN")
 
-    username = request.data.get("username", "").strip()
+    username = request.data.get("username", "")
+    username = username.strip() if isinstance(username, str) else ""
     password = request.data.get("password", "")
     email = request.data.get("email", "").strip()
     role_id = request.data.get("role_id")
@@ -107,11 +120,11 @@ def crear_usuario(request):
             {"error": "Rol inválido"},
             status=400
         )
-    if role.nombre not in ["ADMIN", "CAJERO"]:
+    if role.nombre not in ["ADMIN", "GERENTE", "CAJERO"]:
 
         return Response(
             {
-                "error": "Solo se permiten los roles ADMIN y CAJERO"
+                "error": "Rol no permitido"
             },
             status=400
         )
@@ -145,6 +158,7 @@ def crear_usuario(request):
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def editar_usuario(request, user_id):
 
     requiere_roles(request.user, "ADMIN")
@@ -157,10 +171,14 @@ def editar_usuario(request, user_id):
             status=404
         )
 
-    username = request.data.get("username", "").strip()
-    email = request.data.get("email", "").strip()
+    username = request.data.get("username", "")
+    email = request.data.get("email", "")
+    username = username.strip() if isinstance(username, str) else ""
+    email = email.strip() if isinstance(email, str) else ""
     role_id = request.data.get("role_id")
     is_active = request.data.get("is_active", True)
+    if not isinstance(is_active, bool):
+        return Response({"error": "El estado activo debe ser verdadero o falso."}, status=400)
 
     # Validar campos obligatorios
     if not username:
@@ -182,11 +200,16 @@ def editar_usuario(request, user_id):
     except Role.DoesNotExist:
         return Response({"error": "Rol inválido"}, status=400)
 
-    if role.nombre not in ["ADMIN", "CAJERO"]:
+    if role.nombre not in ["ADMIN", "GERENTE", "CAJERO"]:
         return Response(
-            {"error": "Solo se permiten los roles ADMIN y CAJERO"},
+            {"error": "Rol no permitido"},
             status=400
         )
+
+    perfil, _ = UsuarioPerfil.objects.select_for_update().get_or_create(user=user)
+    era_admin_activo = perfil.role.nombre == "ADMIN" and user.is_active
+    if era_admin_activo and (role.nombre != "ADMIN" or not is_active) and cantidad_administradores() <= 1:
+        return Response({"error": "No puedes cambiar el rol ni desactivar al último administrador activo."}, status=400)
 
     # Actualizar usuario
     user.username = username
@@ -195,35 +218,8 @@ def editar_usuario(request, user_id):
     user.save()
 
     # Actualizar perfil
-    perfil, _ = UsuarioPerfil.objects.get_or_create(user=user)
     perfil.role = role
     perfil.save()
-
-    perfil_actual = UsuarioPerfil.objects.get(user=user)
-
-    if perfil_actual.role.nombre == "ADMIN":
-
-        ultimo_admin = cantidad_administradores() == 1
-
-        if ultimo_admin:
-
-            if role.nombre != "ADMIN":
-
-                return Response(
-                    {
-                        "error": "No puedes cambiar el rol del último administrador."
-                    },
-                    status=400
-                )
-
-            if not is_active:
-
-                return Response(
-                    {
-                        "error": "No puedes desactivar al último administrador."
-                    },
-                    status=400
-                )
 
 
 
@@ -252,8 +248,8 @@ def cambiar_password(request, user_id):
 
     nueva = request.data.get("password")
 
-    if not nueva:
-        return Response({"error": "Password requerido"}, status=400)
+    if not isinstance(nueva, str) or len(nueva) < 8:
+        return Response({"error": "La contraseña debe tener al menos 8 caracteres."}, status=400)
 
     user.set_password(nueva)
     user.save()
@@ -283,39 +279,19 @@ def eliminar_usuario(request, user_id):
             "error": "Usuario no encontrado"
         }, status=404)
 
-    from auditoria.services import registrar_auditoria
-
-    registrar_auditoria(
-
-        usuario=request.user,
-
-        modulo="USUARIOS",
-
-        accion="ELIMINAR_USUARIO",
-
-        referencia=user.username
-
-    )
-
-
     try:
-
-        perfil = UsuarioPerfil.objects.get(user=user)
-
-        if perfil.role.nombre == "ADMIN" and cantidad_administradores() == 1:
-
-            return Response(
-                {
-                    "error": "No puedes eliminar al último administrador."
-                },
-                status=400
-            )
-
+        perfil = UsuarioPerfil.objects.select_related("role").get(user=user)
     except UsuarioPerfil.DoesNotExist:
-        pass
+        perfil = None
+    if user.is_active and perfil and perfil.role.nombre == "ADMIN" and cantidad_administradores() <= 1:
+        return Response({"error": "No puedes desactivar al último administrador activo."}, status=400)
 
-    user.delete()
-
-    return Response({
-        "msg": "Usuario eliminado"
-    })
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    registrar_auditoria(
+        usuario=request.user,
+        modulo="USUARIOS",
+        accion="DESACTIVAR_USUARIO",
+        referencia=user.username,
+    )
+    return Response({"msg": "Usuario desactivado. Su historial se conserva."})

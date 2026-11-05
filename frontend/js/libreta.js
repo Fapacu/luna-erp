@@ -1,12 +1,12 @@
-const token =
+﻿const token =
 localStorage.getItem("token")
 
-const API = "http://127.0.0.1:8000/api";
+const API = window.API_BASE_URL;
 
 let cuentas = []
 
 fetch(
-    "http://127.0.0.1:8000/api/ventas/libreta/",
+    `${API}/ventas/libreta/`,
     {
         headers: {
             "Authorization":
@@ -92,7 +92,7 @@ function renderTabla(lista){
 
                     <div class="avatar-cliente">
 
-                        ${item.cliente_nombre.charAt(0).toUpperCase()}
+                            ${window.escapeHtml(item.cliente_nombre.charAt(0).toUpperCase())}
 
                     </div>
 
@@ -100,7 +100,7 @@ function renderTabla(lista){
 
                         <strong>
 
-                            ${item.cliente_nombre}
+                            ${window.escapeHtml(item.cliente_nombre)}
 
                         </strong>
 
@@ -231,7 +231,7 @@ async function verDetalle(id){
 
         const res = await fetch(
 
-            `http://127.0.0.1:8000/api/ventas/libreta/${id}/`,
+            `${API}/ventas/libreta/${encodeURIComponent(id)}/`,
 
             {
 
@@ -251,7 +251,7 @@ async function verDetalle(id){
 
             <div class="estado-cuenta">
 
-                <h2>${data.cliente}</h2>
+                <h2>${window.escapeHtml(data.cliente)}</h2>
 
                 <hr>
 
@@ -277,9 +277,9 @@ async function verDetalle(id){
 
                             ${m.tipo === "COMPRA"
 
-                                ? "🛒 Compra"
+                                ? "Compra"
 
-                                : "💵 Pago"}
+                                : "Pago"}
 
                         </strong>
 
@@ -337,7 +337,7 @@ async function verDetalle(id){
 
                         <tr>
 
-                            <td>${p.producto}</td>
+                            <td>${window.escapeHtml(p.producto)}</td>
 
                             <td>${p.cantidad}</td>
 
@@ -418,7 +418,7 @@ function cobrar(id){
 
     fetch(
 
-        `http://127.0.0.1:8000/api/ventas/libreta/${id}/cobrar/`,
+            `${API}/ventas/libreta/${encodeURIComponent(id)}/cobrar/`,
 
         {
 
@@ -467,3 +467,8 @@ function cobrar(id){
     })
 
 }
+
+
+
+
+

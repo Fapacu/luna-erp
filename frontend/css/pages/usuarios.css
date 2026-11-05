@@ -156,6 +156,24 @@ color:white;
 opacity:0.9;
 }
 
+.acciones-usuario{
+    white-space:nowrap;
+}
+
+.acciones-usuario .btn-icon{
+    width:36px;
+    height:36px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    border:0;
+    border-radius:8px;
+    margin:2px;
+}
+
+.acciones-usuario .btn-icon i{font-size:15px;line-height:1}
+
 /* ===== MODAL ===== */
 .modal{
 display:none;

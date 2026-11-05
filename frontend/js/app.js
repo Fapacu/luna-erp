@@ -1,4 +1,4 @@
-const rol = localStorage.getItem("rol")
+﻿const rol = localStorage.getItem("rol")
 
 const rolBox = document.getElementById("rolUsuario")
 
@@ -75,3 +75,8 @@ if (btnSalir) {
         localStorage.removeItem("username");
     });
 }
+
+
+
+
+

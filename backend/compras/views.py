@@ -1,10 +1,11 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.db import transaction
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from usuarios.permissions import requiere_roles
 
 from finanzas.models import CuentaPorPagar
 from finanzas.services import registrar_egreso
@@ -75,6 +76,7 @@ def listar_proveedores(request):
     # =====================================
 
     if request.method == 'POST':
+        requiere_roles(request.user, "ADMIN", "GERENTE")
 
         data = request.data
 
@@ -169,6 +171,7 @@ def obtener_proveedor(request, id):
 @permission_classes([IsAuthenticated])
 
 def actualizar_proveedor(request, id):
+    requiere_roles(request.user, "ADMIN", "GERENTE")
 
     try:
 
@@ -235,6 +238,7 @@ def actualizar_proveedor(request, id):
 @permission_classes([IsAuthenticated])
 
 def eliminar_proveedor(request, id):
+    requiere_roles(request.user, "ADMIN", "GERENTE")
 
     try:
 
@@ -247,6 +251,11 @@ def eliminar_proveedor(request, id):
             "error": "Proveedor no existe"
 
         }, status=404)
+
+    if Compra.objects.filter(proveedor=p).exists():
+        return Response({
+            "error": "No se puede eliminar un proveedor con compras registradas; conserve el historial contable."
+        }, status=409)
 
     p.delete()
 
@@ -265,6 +274,7 @@ def eliminar_proveedor(request, id):
 @permission_classes([IsAuthenticated])
 
 def crear_compra(request):
+    requiere_roles(request.user, "ADMIN", "GERENTE")
 
     data = request.data
 
@@ -280,6 +290,12 @@ def crear_compra(request):
         return Response({
             "error": "No hay productos"
         }, status=400)
+
+    credito = data.get("credito", False)
+    if not isinstance(credito, bool):
+        return Response({"error": "El campo crédito debe ser verdadero o falso."}, status=400)
+    if credito and not data.get("fecha_vencimiento"):
+        return Response({"error": "Indique la fecha de vencimiento para una compra a crédito."}, status=400)
 
     numero_factura = data.get("numero_factura")
 
@@ -315,8 +331,8 @@ def crear_compra(request):
 
         try:
 
-            producto = Producto.objects.get(
-                id=item["producto"]
+            producto = Producto.objects.select_for_update().get(
+                id=item["producto"], activo=True
             )
 
         except Producto.DoesNotExist:
@@ -334,25 +350,25 @@ def crear_compra(request):
 
         try:
 
-            cantidad = int(item["cantidad"])
+            cantidad = Decimal(str(item["cantidad"]))
             costo = Decimal(str(item["costo"]))
 
-        except Exception:
+        except (KeyError, InvalidOperation, TypeError, ValueError):
 
             return Response({
                 "error": "Datos inválidos"
             }, status=400)
 
-        if cantidad <= 0:
+        if not cantidad.is_finite() or cantidad <= 0 or cantidad.as_tuple().exponent < -3:
 
             return Response({
                 "error": "Cantidad inválida"
             }, status=400)
 
-        if costo <= 0:
+        if not costo.is_finite() or costo <= 0 or costo.as_tuple().exponent < -2:
 
             return Response({
-                "error": "Costo inválido"
+                "error": "El costo debe ser positivo y tener hasta dos decimales."
             }, status=400)
 
         subtotal = Decimal(cantidad) * costo
@@ -387,12 +403,9 @@ def crear_compra(request):
                 "efectivo"
             ),
 
-            estado="PAGADA",
+            estado="PENDIENTE" if credito else "PAGADA",
 
-            credito=data.get(
-                "credito",
-                False
-            ),
+            credito=credito,
 
             fecha_vencimiento=data.get(
                 "fecha_vencimiento"
@@ -411,11 +424,25 @@ def crear_compra(request):
 
         for item in productos_validados:
 
+            producto = item["producto"]
+            producto.refresh_from_db(fields=["stock", "precio_compra", "costo_promedio"])
+            stock_anterior = Decimal(str(producto.stock))
+            costo_anterior = Decimal(str(producto.costo_promedio or producto.precio_compra))
+            cantidad = item["cantidad"]
+            costo_nuevo = item["costo"]
+            stock_nuevo = stock_anterior + cantidad
+            costo_promedio = (
+                (stock_anterior * costo_anterior + cantidad * costo_nuevo) / stock_nuevo
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            producto.precio_compra = costo_nuevo
+            producto.costo_promedio = costo_promedio
+            producto.save(update_fields=["precio_compra", "costo_promedio"])
+
             DetalleCompra.objects.create(
 
                 compra=compra,
 
-                producto=item["producto"],
+                producto=producto,
 
                 cantidad=item["cantidad"],
 
@@ -427,7 +454,7 @@ def crear_compra(request):
 
             registrar_movimiento(
 
-                producto=item["producto"],
+                producto=producto,
 
                 tipo="COMPRA",
 
@@ -482,7 +509,8 @@ def crear_compra(request):
         # MOVIMIENTO FINANCIERO
         # =================================
 
-        registrar_egreso(
+        if not compra.credito:
+            registrar_egreso(
 
             categoria="COMPRA",
 
@@ -498,15 +526,17 @@ def crear_compra(request):
 
         )
 
-    except Exception as e:
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("No se pudo registrar la compra")
 
         transaction.set_rollback(True)
 
         return Response({
 
-            "error": str(e)
+            "error": "No se pudo registrar la compra. Verifique los datos e intente nuevamente."
 
-        }, status=400)
+        }, status=500)
 
     return Response({
 

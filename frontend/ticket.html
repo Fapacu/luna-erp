@@ -1,5 +1,7 @@
 <html>
 <head>
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body {
     font-family: monospace;
@@ -23,7 +25,7 @@ body {
 {% for item in detalles %}
 <p>
 {{ item.producto.nombre }}<br>
-{{ item.cantidad }} x {{ item.precio }}
+{{ item.cantidad }} x Gs. {{ item.precio_venta }}
 </p>
 {% endfor %}
 
@@ -35,3 +37,4 @@ body {
 
 </body>
 </html>
+

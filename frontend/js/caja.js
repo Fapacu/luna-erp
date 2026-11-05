@@ -1,6 +1,12 @@
 let carrito = []
 let total = 0
 let productoTemp = null
+let cajaSeleccionada = localStorage.getItem("cajaSeleccionada") || ""
+const ventasStorageKey = "minimercado_ventas_abiertas:" + (localStorage.getItem("username") || "usuario")
+let ventasAbiertas = []
+let ventaActivaId = null
+let cobroEnProceso = false
+const escapeHtml = window.escapeHtml
 
 const token = localStorage.getItem("token")
 
@@ -20,9 +26,159 @@ LOGOUT
 
 function logout(){
 
-    localStorage.clear()
+    localStorage.removeItem("token")
+    localStorage.removeItem("usuario")
+    localStorage.removeItem("rol")
+    localStorage.removeItem("username")
 
     window.location.href = "../login.html"
+}
+
+function persistirVentaActiva(){
+    if (!ventaActivaId) return
+    const venta = ventasAbiertas.find(item => item.id === ventaActivaId)
+    if (!venta) return
+    venta.carrito = carrito.map(item => ({...item}))
+    venta.metodo_pago = document.getElementById("metodoPago")?.value || "EFECTIVO"
+    venta.monto_recibido = document.getElementById("montoRecibido")?.value || ""
+    venta.cliente = document.getElementById("clienteLibreta")?.value || ""
+    venta.cliente_seleccionado = clienteSeleccionado || ""
+    venta.caja_id = cajaSeleccionada || ""
+    try {
+        localStorage.setItem(ventasStorageKey, JSON.stringify(ventasAbiertas))
+        localStorage.setItem(ventasStorageKey + ":activa", ventaActivaId)
+    } catch (error) {
+        console.error("No se pudieron guardar las ventas abiertas", error)
+    }
+    renderVentasAbiertas()
+}
+
+function renderVentasAbiertas(){
+    const lista = document.getElementById("listaVentasAbiertas")
+    if (!lista) return
+    lista.replaceChildren()
+    ventasAbiertas.forEach((venta, indice) => {
+        const tab = document.createElement("div")
+        tab.className = "venta-abierta" + (venta.id === ventaActivaId ? " activa" : "")
+        const seleccionar = document.createElement("button")
+        seleccionar.type = "button"
+        seleccionar.className = "venta-abierta-seleccionar"
+        const suma = (venta.carrito || []).reduce((acc, item) => acc + Number(item.total || 0), 0)
+        seleccionar.textContent = `${venta.nombre || `Venta ${indice + 1}`} · Gs. ${suma.toLocaleString("es-PY")}`
+        seleccionar.setAttribute("aria-current", venta.id === ventaActivaId ? "true" : "false")
+        seleccionar.addEventListener("click", () => cambiarVentaActiva(venta.id))
+        const cerrar = document.createElement("button")
+        cerrar.type = "button"
+        cerrar.className = "venta-abierta-cerrar"
+        cerrar.textContent = "×"
+        cerrar.setAttribute("aria-label", `Eliminar ${venta.nombre || `Venta ${indice + 1}`}`)
+        cerrar.addEventListener("click", () => eliminarVentaAbierta(venta.id))
+        tab.append(seleccionar, cerrar)
+        lista.append(tab)
+    })
+}
+
+function crearVentaNueva(){
+    if (cobroEnProceso) return
+    if (carrito.length && !confirm("La venta actual quedará guardada para continuarla después. ¿Abrir otra venta?")) return
+    persistirVentaActiva()
+    const id = `v-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    ventasAbiertas.push({id, nombre: `Venta ${ventasAbiertas.length + 1}`, carrito: [], metodo_pago: "EFECTIVO", monto_recibido: "", cliente: "", cliente_seleccionado: "", caja_id: cajaSeleccionada})
+    ventaActivaId = id
+    carrito = []
+    clienteSeleccionado = ""
+    document.getElementById("metodoPago").value = "EFECTIVO"
+    document.getElementById("montoRecibido").value = ""
+    document.getElementById("clienteLibreta").value = ""
+    document.getElementById("bloqueLibreta").style.display = "none"
+    document.getElementById("sugerenciasLibreta").innerHTML = ""
+    renderTabla()
+    calcularTotal()
+    persistirVentaActiva()
+    document.getElementById("busquedaProducto")?.focus()
+}
+
+function cambiarVentaActiva(id){
+    if (cobroEnProceso) return
+    if (id === ventaActivaId) return
+    persistirVentaActiva()
+    const venta = ventasAbiertas.find(item => item.id === id)
+    if (!venta) return
+    ventaActivaId = id
+    carrito = (venta.carrito || []).map(item => ({...item}))
+    clienteSeleccionado = venta.cliente_seleccionado || ""
+    if (venta.caja_id) {
+        cajaSeleccionada = String(venta.caja_id)
+        localStorage.setItem("cajaSeleccionada", cajaSeleccionada)
+        document.getElementById("selectorCaja").value = cajaSeleccionada
+    }
+    document.getElementById("metodoPago").value = venta.metodo_pago || "EFECTIVO"
+    document.getElementById("montoRecibido").value = venta.monto_recibido || ""
+    document.getElementById("clienteLibreta").value = venta.cliente || ""
+    document.getElementById("bloqueLibreta").style.display = venta.metodo_pago === "LIBRETA" ? "block" : "none"
+    renderTabla()
+    calcularTotal()
+    renderVentasAbiertas()
+    verificarCaja()
+    mostrarCajaActual()
+}
+
+function eliminarVentaAbierta(id){
+    if (cobroEnProceso) return
+    const venta = ventasAbiertas.find(item => item.id === id)
+    if (venta?.carrito?.length && !confirm("¿Eliminar esta venta pendiente y sus productos?")) return
+    ventasAbiertas = ventasAbiertas.filter(item => item.id !== id)
+    try { localStorage.setItem(ventasStorageKey, JSON.stringify(ventasAbiertas)) } catch (error) { console.error(error) }
+    if (ventaActivaId === id) {
+        ventaActivaId = null
+        carrito = []
+        clienteSeleccionado = ""
+        if (!ventasAbiertas.length) {
+            const nueva = {id: `v-${Date.now()}`, nombre: "Venta 1", carrito: [], metodo_pago: "EFECTIVO", monto_recibido: "", cliente: "", cliente_seleccionado: ""}
+            ventasAbiertas.push(nueva)
+        }
+        cambiarVentaActiva(ventasAbiertas[0].id)
+    } else {
+        renderVentasAbiertas()
+    }
+}
+
+function completarVentaActiva(){
+    ventasAbiertas = ventasAbiertas.filter(item => item.id !== ventaActivaId)
+    ventaActivaId = null
+    carrito = []
+    clienteSeleccionado = ""
+    if (!ventasAbiertas.length) {
+        ventasAbiertas.push({id: `v-${Date.now()}`, nombre: "Venta 1", carrito: [], metodo_pago: "EFECTIVO", monto_recibido: "", cliente: "", cliente_seleccionado: ""})
+    }
+    try { localStorage.setItem(ventasStorageKey, JSON.stringify(ventasAbiertas)) } catch (error) { console.error(error) }
+    cambiarVentaActiva(ventasAbiertas[0].id)
+}
+
+function restaurarVentasAbiertas(){
+    try {
+        const guardadas = JSON.parse(localStorage.getItem(ventasStorageKey) || "[]")
+        ventasAbiertas = Array.isArray(guardadas) ? guardadas : []
+    } catch { ventasAbiertas = [] }
+    if (!ventasAbiertas.length) {
+        ventasAbiertas = [{id: `v-${Date.now()}`, nombre: "Venta 1", carrito: [], metodo_pago: "EFECTIVO", monto_recibido: "", cliente: "", cliente_seleccionado: ""}]
+    }
+    const idGuardado = localStorage.getItem(ventasStorageKey + ":activa")
+    ventaActivaId = ventasAbiertas.some(item => item.id === idGuardado) ? idGuardado : ventasAbiertas[0].id
+    const venta = ventasAbiertas.find(item => item.id === ventaActivaId)
+    carrito = (venta.carrito || []).map(item => ({...item}))
+    clienteSeleccionado = venta.cliente_seleccionado || ""
+    if (venta.caja_id) {
+        cajaSeleccionada = String(venta.caja_id)
+        localStorage.setItem("cajaSeleccionada", cajaSeleccionada)
+    }
+    document.getElementById("metodoPago").value = venta.metodo_pago || "EFECTIVO"
+    document.getElementById("montoRecibido").value = venta.monto_recibido || ""
+    document.getElementById("clienteLibreta").value = venta.cliente || ""
+    document.getElementById("bloqueLibreta").style.display = venta.metodo_pago === "LIBRETA" ? "block" : "none"
+    renderTabla()
+    calcularTotal()
+    renderVentasAbiertas()
 }
 
 
@@ -59,8 +215,7 @@ input.addEventListener("input", function(){
     }
 
     fetch(
-
-        `http://127.0.0.1:8000/api/inventario/buscar/?q=${query}`,
+        window.apiUrl(`inventario/buscar/?q=${encodeURIComponent(query)}`),
 
         {
             headers:{
@@ -78,25 +233,15 @@ input.addEventListener("input", function(){
             "sugerencias"
         )
 
-        cont.innerHTML = ""
+        cont.replaceChildren()
 
         data.forEach(p => {
-
-            cont.innerHTML += `
-            <div
-            onclick='seleccionarProducto(${JSON.stringify(p)})'
-
-            style="
-            padding:10px;
-            cursor:pointer;
-            border-bottom:1px solid #eee;
-            transition:0.2s;
-            ">
-
-                ${p.nombre}
-
-            </div>
-            `
+            const opcion = document.createElement("button")
+            opcion.type = "button"
+            opcion.className = "sugerencia-item"
+            opcion.textContent = p.nombre
+            opcion.addEventListener("click", () => seleccionarProducto(p))
+            cont.append(opcion)
         })
 
     })
@@ -248,7 +393,7 @@ function renderTabla(){
 
             <td>
 
-                ${item.nombre}
+                ${escapeHtml(item.nombre)}
 
                 <br>
 
@@ -285,14 +430,14 @@ function renderTabla(){
             <td>
 
                 Gs.
-                ${item.precio.toLocaleString('es-CL')}
+                ${item.precio.toLocaleString('es-PY')}
 
             </td>
 
             <td>
 
                 Gs.
-                ${item.total.toLocaleString('es-CL')}
+                ${item.total.toLocaleString('es-PY')}
 
             </td>
 
@@ -367,7 +512,7 @@ function calcularTotal(){
     document.getElementById(
         "totalVenta"
     ).innerText =
-    "Gs. " + total.toLocaleString('es-CL')
+    "Gs. " + total.toLocaleString('es-PY')
 
     calcularVuelto()
 }
@@ -394,7 +539,9 @@ function calcularVuelto(){
         "vuelto"
     ).innerText =
     "Gs. " +
-    vuelto.toLocaleString('es-CL')
+    vuelto.toLocaleString('es-PY')
+
+    persistirVentaActiva()
 }
 
 
@@ -402,7 +549,10 @@ document.getElementById(
     "montoRecibido"
 )?.addEventListener(
     "input",
-    calcularVuelto
+    () => {
+        calcularVuelto()
+        persistirVentaActiva()
+    }
 )
 
 
@@ -411,6 +561,8 @@ FINALIZAR VENTA
 ====================== */
 
 function finalizarVenta(){
+
+    if(cobroEnProceso) return
 
     if(carrito.length === 0){
 
@@ -465,12 +617,13 @@ function finalizarVenta(){
     )
 
     btnCobrar.disabled = true
+    cobroEnProceso = true
 
     btnCobrar.innerText =
     "Procesando..."
 
     fetch(
-        "http://127.0.0.1:8000/api/ventas/",
+        window.apiUrl("ventas/"),
         {
 
             method:"POST",
@@ -483,7 +636,8 @@ function finalizarVenta(){
 
                 metodo_pago,
 
-                cliente_nombre
+                cliente_nombre,
+                caja_id: cajaSeleccionada
             })
         }
     )
@@ -520,25 +674,15 @@ function finalizarVenta(){
 
     .then(data => {
 
+        cobroEnProceso = false
+
         alert(
             "Venta realizada"
         )
 
-        carrito = []
-
-        total = 0
-
-        renderTabla()
-
-        calcularTotal()
+        completarVentaActiva()
 
         mostrarCajaActual()
-
-        document.getElementById(
-            "montoRecibido"
-        ).value = ""
-
-        calcularVuelto()
 
         btnCobrar.disabled = false
 
@@ -548,6 +692,8 @@ function finalizarVenta(){
     })
 
     .catch(error => {
+
+        cobroEnProceso = false
 
         console.error(error)
 
@@ -570,7 +716,7 @@ function mostrarCajaActual(){
 
     fetch(
 
-        "http://127.0.0.1:8000/api/ventas/caja/actual/",
+        window.apiUrl(`ventas/caja/actual/?caja_id=${encodeURIComponent(cajaSeleccionada)}`),
 
         {
             headers:{
@@ -704,7 +850,7 @@ async function registrarRetiro(){
 
     const res = await fetch(
 
-        "http://127.0.0.1:8000/api/ventas/retiro/",
+        window.apiUrl("ventas/retiro/"),
 
         {
 
@@ -714,7 +860,8 @@ async function registrarRetiro(){
 
             body: JSON.stringify({
                 descripcion,
-                monto
+                monto,
+                caja_id: cajaSeleccionada
             })
         }
     )
@@ -749,7 +896,7 @@ async function registrarGasto(){
 
     const res = await fetch(
 
-        "http://127.0.0.1:8000/api/ventas/gasto/",
+        window.apiUrl("ventas/gasto/"),
 
         {
 
@@ -759,7 +906,8 @@ async function registrarGasto(){
 
             body: JSON.stringify({
                 descripcion,
-                monto
+                monto,
+                caja_id: cajaSeleccionada
             })
         }
     )
@@ -780,11 +928,20 @@ async function registrarGasto(){
 ESTADO CAJA
 ====================== */
 
+function seleccionarCaja(id){
+    cajaSeleccionada = id || "";
+    if (cajaSeleccionada) localStorage.setItem("cajaSeleccionada", cajaSeleccionada);
+    else localStorage.removeItem("cajaSeleccionada");
+    persistirVentaActiva()
+    verificarCaja();
+    mostrarCajaActual();
+}
+
 function verificarCaja(){
 
     fetch(
 
-        "http://127.0.0.1:8000/api/ventas/caja/estado/",
+        window.apiUrl("ventas/caja/estado/"),
 
         {
             headers:{
@@ -812,34 +969,22 @@ function verificarCaja(){
             "estadoCaja"
         )
 
-        if(data.abierta){
-
-            btnAbrir.style.display =
-            "none"
-
-            btnCerrar.style.display =
-            "inline-block"
-
-            estado.innerText =
-            "🟢 ABIERTA"
-
-            estado.style.color =
-            "green"
-
-        }else{
-
-            btnAbrir.style.display =
-            "inline-block"
-
-            btnCerrar.style.display =
-            "none"
-
-            estado.innerText =
-            "🔴 CERRADA"
-
-            estado.style.color =
-            "red"
+        const selector = document.getElementById("selectorCaja");
+        selector.innerHTML = data.cajas.length
+            ? data.cajas.map(c => `<option value="${c.id}">Caja #${c.id} · ${escapeHtml(c.usuario)}</option>`).join("")
+            : '<option value="">Sin cajas abiertas</option>';
+        if (!data.cajas.some(c => String(c.id) === String(cajaSeleccionada))) {
+            cajaSeleccionada = data.cajas.length ? String(data.cajas[0].id) : "";
+            if (cajaSeleccionada) localStorage.setItem("cajaSeleccionada", cajaSeleccionada);
+            else localStorage.removeItem("cajaSeleccionada");
         }
+        selector.value = cajaSeleccionada;
+        const abierta = Boolean(cajaSeleccionada);
+        btnAbrir.style.display = "inline-block";
+        btnCerrar.style.display = abierta ? "inline-block" : "none";
+        estado.innerText = abierta ? `🟢 ABIERTA · Caja #${cajaSeleccionada}` : "🔴 SIN CAJAS ABIERTAS";
+        estado.style.color = abierta ? "green" : "red";
+        persistirVentaActiva()
 
     })
 
@@ -859,7 +1004,7 @@ function abrirCaja(){
 
     fetch(
 
-        "http://127.0.0.1:8000/api/ventas/caja/abrir/",
+        window.apiUrl("ventas/caja/abrir/"),
 
         {
 
@@ -922,7 +1067,7 @@ function cerrarCaja(){
 
     fetch(
 
-        "http://127.0.0.1:8000/api/ventas/caja/cerrar/",
+        window.apiUrl("ventas/caja/cerrar/"),
 
         {
 
@@ -931,7 +1076,8 @@ function cerrarCaja(){
             headers: headers,
 
             body: JSON.stringify({
-                monto_real: montoReal
+                monto_real: montoReal,
+                caja_id: cajaSeleccionada
             })
         }
     )
@@ -1035,6 +1181,7 @@ document.getElementById(
             libretaBox.style.display =
             "none"
         }
+        persistirVentaActiva()
     }
 )
 
@@ -1044,6 +1191,8 @@ INICIO
 ====================== */
 
 window.onload = function(){
+
+    restaurarVentasAbiertas()
 
     verificarCaja()
 
@@ -1060,7 +1209,10 @@ let clienteSeleccionado = "";
 
 document
 .getElementById("clienteLibreta")
-.addEventListener("input", buscarLibreta);
+.addEventListener("input", () => {
+    persistirVentaActiva()
+    buscarLibreta()
+});
 
 async function buscarLibreta(){
 
@@ -1077,13 +1229,14 @@ async function buscarLibreta(){
         .innerHTML = "";
 
         clienteSeleccionado = "";
+        persistirVentaActiva();
 
         return;
     }
 
     const res = await fetch(
 
-        `http://127.0.0.1:8000/api/ventas/libreta/buscar/?q=${texto}`,
+        window.apiUrl(`ventas/libreta/buscar/?q=${encodeURIComponent(texto)}`),
 
         {
             headers:{
@@ -1095,45 +1248,32 @@ async function buscarLibreta(){
 
     const data = await res.json();
 
-    let html = "";
+    const lista = document.getElementById("sugerenciasLibreta")
+    lista.replaceChildren()
 
-    data.forEach(c=>{
+    data.forEach(c => {
+        const opcion = document.createElement("button")
+        opcion.type = "button"
+        opcion.className = "item-libreta"
+        const nombre = document.createElement("strong")
+        nombre.textContent = c.nombre
+        const saldo = document.createElement("span")
+        saldo.textContent = `Saldo: Gs. ${Number(c.saldo).toLocaleString("es-PY")}`
+        opcion.append(nombre, document.createElement("br"), saldo)
+        opcion.addEventListener("click", () => seleccionarCliente(c.nombre))
+        lista.append(opcion)
+    })
 
-        html += `
-
-        <div class="item-libreta"
-            onclick="seleccionarCliente('${c.nombre}')">
-
-            <strong>${c.nombre}</strong><br>
-
-            Saldo:
-            Gs. ${Number(c.saldo).toLocaleString()}
-
-        </div>
-
-        `;
-
-    });
-
-    if(data.length===0){
-
-        html += `
-
-        <div class="item-crear"
-            onclick="crearClienteNuevo()">
-
-            ➕ Crear libreta para
-            <strong>${texto}</strong>
-
-        </div>
-
-        `;
-
+    if (data.length === 0) {
+        const opcion = document.createElement("button")
+        opcion.type = "button"
+        opcion.className = "item-crear"
+        const nombre = document.createElement("strong")
+        nombre.textContent = texto
+        opcion.append("Crear libreta para ", nombre)
+        opcion.addEventListener("click", crearClienteNuevo)
+        lista.append(opcion)
     }
-
-    document.getElementById(
-        "sugerenciasLibreta"
-    ).innerHTML = html;
 
 }
 
@@ -1149,6 +1289,8 @@ function seleccionarCliente(nombre){
         "sugerenciasLibreta"
     ).innerHTML = "";
 
+    persistirVentaActiva();
+
 }
 
 function crearClienteNuevo(){
@@ -1161,6 +1303,8 @@ function crearClienteNuevo(){
     document.getElementById(
         "sugerenciasLibreta"
     ).innerHTML = "";
+
+    persistirVentaActiva();
 
 }
 

@@ -60,9 +60,10 @@ CONTENEDOR
 ========================= */
 
 .contenedor{
-padding:24px 30px;
-max-width:1600px;
-margin:auto;
+width:100%;
+max-width:none;
+padding:30px;
+margin:0;
 }
 
 /* =========================
@@ -411,4 +412,5 @@ grid-template-columns:1fr;
 }
 
 }
+
 

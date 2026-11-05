@@ -1,12 +1,13 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from ventas.models import Venta, DetalleVenta
 from inventario.models import Producto
 
 from django.db.models import Sum, F
-from django.utils.timezone import now
-from datetime import timedelta
+from ventas.models import Caja
+from django.utils.timezone import localdate
 
 
 # ======================
@@ -14,15 +15,15 @@ from datetime import timedelta
 # ======================
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def estadisticas(request):
 
     # 🔥 RANGO DEL DÍA (SOLUCIÓN ZONA HORARIA)
-    inicio = now().replace(hour=0, minute=0, second=0, microsecond=0)
-    fin = inicio + timedelta(days=1)
+    hoy = localdate()
 
     ventas = Venta.objects.filter(
-        fecha__gte=inicio,
-        fecha__lt=fin
+        fecha__date=hoy,
+        estado="COMPLETADA",
     )
 
     # 💰 TOTAL DEL DÍA
@@ -30,12 +31,19 @@ def estadisticas(request):
 
     # 📦 PRODUCTOS VENDIDOS
     productos_hoy = DetalleVenta.objects.filter(
-        venta__fecha__gte=inicio,
-        venta__fecha__lt=fin
-    ).count()
+        venta__in=ventas
+    ).aggregate(total=Sum("cantidad"))["total"] or 0
 
     # 💵 CAJA TOTAL
-    caja_total = total_hoy
+    cajas_abiertas = Caja.objects.filter(abierta=True)
+    caja_total = sum(
+        c.monto_inicial + sum(
+            (m.monto if m.tipo == "INGRESO" else -m.monto)
+            for m in c.movimientocaja_set.all()
+            if m.tipo in {"INGRESO", "RETIRO", "GASTO"}
+        )
+        for c in cajas_abiertas
+    )
 
     # 💳 MÉTODOS DE PAGO
     efectivo = ventas.filter(metodo_pago="EFECTIVO").aggregate(total=Sum('total'))['total'] or 0
@@ -63,6 +71,7 @@ def estadisticas(request):
 # ======================
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def alertas_stock(request):
 
     productos = Producto.objects.filter(

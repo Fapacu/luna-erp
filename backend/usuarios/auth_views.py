@@ -1,4 +1,5 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from usuarios.models import UsuarioPerfil
 from django.contrib.auth import authenticate
@@ -9,6 +10,7 @@ from auditoria.services import registrar_auditoria
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login_personalizado(request):
 
     username = request.data.get(
@@ -36,6 +38,11 @@ def login_personalizado(request):
 
         }, status=401)
 
+    try:
+        perfil = UsuarioPerfil.objects.select_related("role").get(user=user)
+    except UsuarioPerfil.DoesNotExist:
+        return Response({"error": "La cuenta no tiene un rol asignado. Contacta al administrador."}, status=403)
+
     registrar_auditoria(
 
         usuario=user,
@@ -55,8 +62,6 @@ def login_personalizado(request):
     refresh = RefreshToken.for_user(
         user
     )
-
-    perfil = UsuarioPerfil.objects.get(user=user)
 
     return Response({
 

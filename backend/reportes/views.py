@@ -12,13 +12,17 @@ from django.db import models
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from ventas.models import Venta, DetalleVenta, Caja
+from ventas.models import Venta, DetalleVenta, Caja, MovimientoCaja
 from inventario.models import Producto
 from .pdf import generar_pdf
+from usuarios.permissions import obtener_rol
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_financiero(request):
+
+    if not request.user.is_staff and obtener_rol(request.user) not in ["ADMIN", "GERENTE"]:
+        raise PermissionDenied("No tienes permiso")
 
     ventas_total = Venta.objects.filter(
         estado='COMPLETADA'
@@ -72,18 +76,17 @@ def dashboard_financiero(request):
 @permission_classes([IsAuthenticated])
 def dashboard_data(request):
 
-    try:
-        rol = request.user.usuarioperfil.role.nombre
-    except:
-        rol = ""
+    rol = obtener_rol(request.user)
 
     if not request.user.is_staff and rol not in ['ADMIN', 'GERENTE']:
         raise PermissionDenied("No tienes permiso")
 
     hoy = now().date()
 
-    ventas_hoy = Venta.objects.filter(fecha__date=hoy),
-    estado='COMPLETADA'
+    ventas_hoy = Venta.objects.filter(
+        fecha__date=hoy,
+        estado='COMPLETADA'
+    )
 
     total_hoy = ventas_hoy.aggregate(total=Sum('total'))['total'] or 0
 
@@ -92,15 +95,20 @@ def dashboard_data(request):
     transferencia = ventas_hoy.filter(metodo_pago='TRANSFERENCIA').aggregate(total=Sum('total'))['total'] or 0
 
     productos_hoy = DetalleVenta.objects.filter(
-        venta__fecha__date=hoy
+        venta__fecha__date=hoy,
+        venta__estado="COMPLETADA",
     ).aggregate(total=Sum('cantidad'))['total'] or 0
 
     cajas_abiertas = Caja.objects.filter(abierta=True)
-
-    caja_total = sum(
-        float(c.monto_inicial or 0) + float(c.total_vendido or 0)
-        for c in cajas_abiertas
-    )
+    caja_total = 0
+    for caja in cajas_abiertas:
+        movimientos = {
+            item["tipo"]: item["total"] or Decimal("0")
+            for item in MovimientoCaja.objects.filter(caja=caja)
+            .values("tipo").annotate(total=Sum("monto"))
+        }
+        caja_total += caja.monto_inicial + movimientos.get("INGRESO", Decimal("0"))
+        caja_total -= movimientos.get("RETIRO", Decimal("0")) + movimientos.get("GASTO", Decimal("0"))
 
     return Response({
         "total_hoy": total_hoy,
@@ -117,10 +125,7 @@ def dashboard_data(request):
 @permission_classes([IsAuthenticated])
 def productos_mas_vendidos(request):
 
-    try:
-        rol = request.user.usuarioperfil.role.nombre
-    except:
-        rol = ""
+    rol = obtener_rol(request.user)
 
     if not request.user.is_staff and rol not in ['ADMIN', 'GERENTE']:
         raise PermissionDenied("No tienes permiso")
@@ -133,7 +138,8 @@ def productos_mas_vendidos(request):
 
     ventas = DetalleVenta.objects.filter(
         venta__fecha__month=mes,
-        venta__fecha__year=anio
+        venta__fecha__year=anio,
+        venta__estado="COMPLETADA",
     )
 
     productos = ventas.values('producto__nombre') \
@@ -151,10 +157,7 @@ def productos_mas_vendidos(request):
 @permission_classes([IsAuthenticated])
 def dashboard_reporte(request):
 
-    try:
-        rol = request.user.usuarioperfil.role.nombre
-    except:
-        rol = ""
+    rol = obtener_rol(request.user)
 
     if not request.user.is_staff and rol not in ['ADMIN', 'GERENTE']:
         raise PermissionDenied("No tienes permiso")
@@ -169,20 +172,28 @@ def dashboard_reporte(request):
     try:
         desde_date = make_aware(datetime.strptime(desde, "%Y-%m-%d"))
         hasta_date = make_aware(datetime.strptime(hasta, "%Y-%m-%d"))
+        if hasta_date < desde_date:
+            return Response({"error": "El fin del periodo no puede ser anterior al inicio."}, status=400)
+        hasta_exclusivo = hasta_date + timedelta(days=1)
     except:
         return Response({"error": "Fechas inválidas"}, status=400)
 
     # 📅 PERIODO ACTUAL
-    ventas = Venta.objects.filter(fecha__range=[desde_date, hasta_date], estado='COMPLETADA')
+    ventas = Venta.objects.filter(
+        fecha__gte=desde_date,
+        fecha__lt=hasta_exclusivo,
+        estado='COMPLETADA',
+    )
     ventas_ids = ventas.values_list('id', flat=True)
 
     # 🔙 PERIODO ANTERIOR
-    dias = (hasta_date - desde_date).days
-    anterior_desde = desde_date - timedelta(days=dias + 1)
-    anterior_hasta = desde_date - timedelta(days=1)
+    dias = (hasta_exclusivo - desde_date).days
+    anterior_desde = desde_date - timedelta(days=dias)
+    anterior_hasta = desde_date
 
     ventas_anterior = Venta.objects.filter(
-        fecha__range=[anterior_desde, anterior_hasta],
+        fecha__gte=anterior_desde,
+        fecha__lt=anterior_hasta,
         estado='COMPLETADA'
     )
 
@@ -197,7 +208,8 @@ def dashboard_reporte(request):
 
     egresos = MovimientoFinanciero.objects.filter(
         tipo="EGRESO",
-        fecha__range=[desde_date, hasta_date]
+        fecha__gte=desde_date,
+        fecha__lt=hasta_exclusivo,
     )
 
     egreso_total = egresos.aggregate(
@@ -366,6 +378,9 @@ def alertas_stock(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def exportar_pdf(request):
+
+    if not request.user.is_staff and obtener_rol(request.user) not in ["ADMIN", "GERENTE"]:
+        raise PermissionDenied("No tienes permiso")
 
     productos = request.data.get("productos", [])
 

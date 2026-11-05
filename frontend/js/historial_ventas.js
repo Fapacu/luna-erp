@@ -1,5 +1,5 @@
-async function cargarVentas() {
-    const response = await fetch('http://127.0.0.1:8000/api/ventas/historial/');
+﻿async function cargarVentas() {
+    const response = await fetch('https://berry-previews-compensation-big.trycloudflare.com/api/ventas/historial/');
 
     const ventas = await response.json();
 
@@ -22,3 +22,8 @@ async function cargarVentas() {
 }
 
 cargarVentas();
+
+
+
+
+

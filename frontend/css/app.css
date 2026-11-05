@@ -389,17 +389,34 @@ textarea:focus{
 @media(max-width:900px){
 
     .layout{
-
-        flex-direction:column;
-
+        flex-direction:row;
     }
 
-    .sidebar{
+}
 
-        width:100%;
+/* El dashboard conserva el ancho disponible al contraer el sidebar. */
+.dashboard-main{
+    min-width:0;
+}
 
-    }
+.dashboard-main > h1{
+    margin-bottom:24px;
+    font-size:clamp(24px, 3vw, 32px);
+}
 
+.dashboard-main > .grid{
+    width:100%;
+    grid-template-columns:repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.dashboard-main > .card,
+.dashboard-main > .grid .card{
+    min-width:0;
+}
+
+.dashboard-main canvas{
+    display:block;
+    max-width:100%;
 }
 
 

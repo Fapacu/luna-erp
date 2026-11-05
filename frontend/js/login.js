@@ -1,119 +1,92 @@
-const form = document.getElementById("loginForm")
-const spinner = document.getElementById("spinner")
-const btnText = document.getElementById("btnText")
-const error = document.getElementById("errorMsg")
+﻿
+const form = document.getElementById("loginForm");
+const spinner = document.getElementById("spinner");
+const btnText = document.getElementById("btnText");
+const error = document.getElementById("errorMsg");
 
-/* mostrar contraseña */
+const username = document.getElementById("username");
+const password = document.getElementById("password");
 
-document.getElementById("togglePass")
-    .addEventListener("click", () => {
+// Mostrar u ocultar contraseña
+document.getElementById("togglePass").addEventListener("click", () => {
+    password.type = password.type === "password" ? "text" : "password";
+});
 
-        const pass = document.getElementById("password")
-
-        if (pass.type === "password") {
-            pass.type = "text"
-        } else {
-            pass.type = "password"
-        }
-
-    })
-
-/* recordar usuario */
-
+// Recordar usuario
 window.onload = () => {
-
-    const saved = localStorage.getItem("rememberUser")
+    const saved = localStorage.getItem("rememberUser");
 
     if (saved) {
-
-        document.getElementById("username").value = saved
-        document.getElementById("remember").checked = true
-
+        username.value = saved;
+        document.getElementById("remember").checked = true;
     }
-
-}
+};
 
 form.addEventListener("submit", (e) => {
+    e.preventDefault();
 
-    e.preventDefault()
+    error.style.display = "none";
+    spinner.style.display = "inline-block";
+    btnText.innerText = "";
 
-    error.style.display = "none"
-
-    spinner.style.display = "inline-block"
-    btnText.innerText = ""
-
-    fetch("http://127.0.0.1:8000/api/login/", {
-
+    fetch(window.apiUrl("login/"), {
         method: "POST",
-
         headers: {
             "Content-Type": "application/json"
         },
-
         body: JSON.stringify({
-
             username: username.value,
             password: password.value
-
         })
-
     })
+    .then(async (res) => {
+        const data = await res.json();
 
-        .then(res => res.json())
-        .then(data => {
+        if (!res.ok) {
+            throw new Error(data.detail || data.error || "Usuario o contraseña incorrectos.");
+        }
 
-            if (!data.access) {
+        return data;
+    })
+    .then(data => {
+        if (!data.access || !data.usuario) {
+            throw new Error("La respuesta del servidor no contiene los datos esperados.");
+        }
 
-                spinner.style.display = "none"
-                btnText.innerText = "Ingresar"
+        if (document.getElementById("remember").checked) {
+            localStorage.setItem("rememberUser", username.value);
+        } else {
+            localStorage.removeItem("rememberUser");
+        }
 
-                error.innerText = "Usuario o contraseña incorrectos"
-                error.style.display = "block"
+        localStorage.setItem("token", data.access);
+        localStorage.setItem("usuario", JSON.stringify(data.usuario));
+        localStorage.setItem("rol", data.usuario.rol);
+        localStorage.setItem("username", data.usuario.username);
 
-                return
+        spinner.style.display = "none";
+        btnText.innerText = "Ingresar";
 
-            }
+        switch (data.usuario.rol) {
+            case "ADMIN":
+            case "GERENTE":
+            case "CAJERO":
+                window.location.href = "dashboard.html";
+                break;
 
-            /* recordar usuario */
-
-            if (document.getElementById("remember").checked) {
-
-                localStorage.setItem("rememberUser", username.value)
-
-            } else {
-
-                localStorage.removeItem("rememberUser")
-
-            }
-
-            localStorage.setItem("token", data.access);
-            localStorage.setItem("usuario", JSON.stringify(data.usuario));
-
-            localStorage.setItem("rol", data.usuario.rol);
-
-            localStorage.setItem("token", data.access);
-
-            localStorage.setItem("usuario", JSON.stringify(data.usuario));
-
-            localStorage.setItem("rol", data.usuario.rol);
-
-            localStorage.setItem("username", data.usuario.username);
-
-            switch (data.usuario.rol) {
-
-                case "ADMIN":
-                    window.location.href = "dashboard.html";
-                    break;
-
-                case "CAJERO":
-                    window.location.href = "dashboard.html";
-                    break;
-
-                default:
-                    error.innerText = "Rol no reconocido.";
-                    error.style.display = "block";
-            }
-
-        })
-
-})
+            default:
+                localStorage.removeItem("token");
+                error.innerText = "Rol no reconocido.";
+                error.style.display = "block";
+        }
+    })
+    .catch(err => {
+        console.error("Error de inicio de sesión:", err);
+        spinner.style.display = "none";
+        btnText.innerText = "Ingresar";
+        error.innerText = err.message === "Failed to fetch"
+            ? "No se pudo conectar con el servidor. Verificá que Django esté activo."
+            : err.message;
+        error.style.display = "block";
+    });
+});

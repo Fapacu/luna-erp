@@ -1,4 +1,4 @@
-function cargarHeader(titulo = "Dashboard") {
+﻿function cargarHeader(titulo = "Dashboard") {
 
     const contenedor = document.getElementById("header-container");
 
@@ -17,7 +17,7 @@ function cargarHeader(titulo = "Dashboard") {
 
             <div class="header-left">
 
-                <h1>${titulo}</h1>
+                <h1>${window.escapeHtml(titulo)}</h1>
 
             </div>
 
@@ -29,15 +29,15 @@ function cargarHeader(titulo = "Dashboard") {
 
                     <div class="user-avatar">
 
-                        ${inicial}
+                        ${window.escapeHtml(inicial)}
 
                     </div>
 
                     <div class="user-name">
 
-                        <strong>${nombre}</strong>
+                        <strong>${window.escapeHtml(nombre)}</strong>
 
-                        <small>${rol}</small>
+                        <small>${window.escapeHtml(rol)}</small>
 
                     </div>
 
@@ -50,3 +50,7 @@ function cargarHeader(titulo = "Dashboard") {
     `;
 
 }
+
+
+
+

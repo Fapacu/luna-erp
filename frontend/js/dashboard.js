@@ -1,4 +1,4 @@
-// ======================
+﻿// ======================
 // VALIDACIÓN SIMPLE
 // ======================
 
@@ -21,7 +21,7 @@ function cargarDashboard(){
 
 fetch(
 
-    "http://127.0.0.1:8000/api/dashboard/",
+    window.apiUrl("dashboard/"),
 
     {
 
@@ -55,12 +55,12 @@ fetch(
             "ventas_hoy"
         ).innerText =
 
-        "$ " +
+        "Gs. " +
 
         Number(
             data.total_hoy
         ).toLocaleString(
-            'es-CL'
+            'es-PY'
         )
 
     }
@@ -89,12 +89,12 @@ fetch(
             "caja_total"
         ).innerText =
 
-        "$ " +
+        "Gs. " +
 
         Number(
             data.caja_total
         ).toLocaleString(
-            'es-CL'
+            'es-PY'
         )
 
     }
@@ -181,7 +181,7 @@ function cargarAlertas(){
 
 fetch(
 
-    "http://127.0.0.1:8000/api/dashboard/alertas-stock/",
+    window.apiUrl("dashboard/alertas-stock/"),
 
     {
 
@@ -230,7 +230,7 @@ fetch(
             "
         >
 
-            ${p.nombre}
+            ${window.escapeHtml(p.nombre)}
 
             - Stock:
 
@@ -260,7 +260,7 @@ function cargarCajaActual(){
 
 fetch(
 
-    "http://127.0.0.1:8000/api/ventas/caja/actual/",
+    window.apiUrl("ventas/caja/actual/"),
 
     {
 
@@ -290,12 +290,12 @@ fetch(
 
         caja.innerText =
 
-        "$ " +
+        "Gs. " +
 
         Number(
             data.total
         ).toLocaleString(
-            "es-CL"
+            "es-PY"
         )
 
     }
@@ -391,3 +391,8 @@ window.onload = function(){
     )
 
 }
+
+
+
+
+

@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="../css/components.css">
     <link rel="stylesheet" href="../css/pages/inventario.css">
 
+<script src="../js/api-config.js"></script>
 </head>
 
 <body>
@@ -357,17 +358,23 @@
 
             <input
                 id="cantidad"
-                type="number">
+                type="number"
+                step="0.001"
+                required>
 
         </div>
 
         <div class="form-group">
 
-            <label>Motivo</label>
+            <label for="motivo">Motivo <span aria-hidden="true">*</span></label>
 
             <input
                 id="motivo"
-                type="text">
+                type="text"
+                maxlength="255"
+                required
+                aria-required="true"
+                placeholder="Indica el motivo del ajuste">
 
         </div>
 
@@ -424,5 +431,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </script>
 
+<script src="../js/enter-navigation.js"></script>
+<script src="../js/responsive-tables.js"></script>
 </body>
 </html>
+

@@ -1,15 +1,17 @@
-let compra = []
+﻿let compra = []
 let total = 0
 
-const API = "http://127.0.0.1:8000/api"
+const API = window.API_BASE_URL
 const token = localStorage.getItem("token")
+const escapeHtml = window.escapeHtml
+const detallesDeCompra = new Map()
 
 /* ======================
 INICIO
 ====================== */
 window.onload = () => {
-    cargarProveedores()
-    cargarCompras()
+    if (document.getElementById("proveedorSelect")) cargarProveedores()
+    if (document.getElementById("tablaCompras")) cargarCompras()
 }
 
 
@@ -41,6 +43,11 @@ function abrirFormulario(){
 }
 
 function cerrarFormulario(){
+    if (window.MODO_REGISTRO_COMPRA) {
+        window.location.href = "compras.html"
+        return
+    }
+
     document.getElementById("modalCompra").style.display = "none"
     compra = []
     total = 0
@@ -64,23 +71,15 @@ async function cargarProveedores(){
 
     const select = document.getElementById("proveedorSelect");
 
-    select.innerHTML = "<option value=''>Seleccione proveedor</option>";
+    select.replaceChildren(new Option("Seleccione proveedor", ""));
 
     data.forEach(p => {
 
-        select.innerHTML += `
-            <option value="${p.id}">
-                ${p.nombre}
-            </option>
-        `;
+        select.add(new Option(p.nombre, p.id));
 
     });
 
-    select.innerHTML += `
-        <option value="nuevo">
-            ➕ Nuevo proveedor...
-        </option>
-    `;
+    select.add(new Option("Nuevo proveedor…", "nuevo"));
 
 }
 
@@ -102,7 +101,7 @@ inputProducto.addEventListener("input", function(){
         return
     }
 
-    fetch(`${API}/inventario/buscar/?q=${query}`,{
+    fetch(`${API}/inventario/buscar/?q=${encodeURIComponent(query)}`,{
         headers:{
             "Authorization": "Bearer " + token
         }
@@ -113,7 +112,7 @@ inputProducto.addEventListener("input", function(){
         const cont = document.getElementById("sugerencias")
         const aviso = document.getElementById("productoNoExiste")
 
-        cont.innerHTML = ""
+        cont.replaceChildren()
 
         if(data.length === 0){
 
@@ -127,12 +126,12 @@ inputProducto.addEventListener("input", function(){
 
         data.forEach(p => {
 
-            cont.innerHTML += `
-                <div class="sugerencia"
-                    onclick='seleccionarProducto(${JSON.stringify(p)})'>
-                    ${p.nombre}
-                </div>
-            `
+            const opcion = document.createElement("button")
+            opcion.type = "button"
+            opcion.className = "sugerencia"
+            opcion.textContent = p.nombre
+            opcion.addEventListener("click", () => seleccionarProducto(p))
+            cont.append(opcion)
 
         })
 
@@ -333,11 +332,11 @@ compra.forEach((p, i) => {
 
 tabla.innerHTML += `
 <tr>
-<td>${p.nombre}</td>
+<td>${escapeHtml(p.nombre)}</td>
 <td>${p.cantidad}</td>
-<td>$${p.costo.toLocaleString()}</td>
-<td>$${(p.cantidad * p.costo).toLocaleString()}</td>
-<td><button onclick="eliminarProducto(${i})">❌</button></td>
+<td>Gs. ${Number(p.costo).toLocaleString("es-PY")}</td>
+<td>Gs. ${(Number(p.cantidad) * Number(p.costo)).toLocaleString("es-PY")}</td>
+<td><button type="button" aria-label="Quitar producto" onclick="eliminarProducto(${i})"><i class="bi bi-trash"></i></button></td>
 </tr>
 `
 })
@@ -448,6 +447,11 @@ function guardarCompra(){
             "Compra registrada correctamente"
         )
 
+        if (window.MODO_REGISTRO_COMPRA) {
+            window.location.href = "compras.html"
+            return
+        }
+
         cerrarFormulario()
 
         cargarCompras()
@@ -471,6 +475,8 @@ HISTORIAL
 ====================== */
 
 function cargarCompras(){
+
+    if (!document.getElementById("tablaCompras")) return
 
     fetch(`${API}/compras/historial/`,{
         headers:{
@@ -537,17 +543,21 @@ function cargarCompras(){
 
         data.forEach(c => {
 
+            detallesDeCompra.set(Number(c.id), Array.isArray(c.detalle) ? c.detalle : [])
+
             tabla.innerHTML += `
             <tr>
                 <td>${c.id}</td>
-                <td>${c.numero_factura || "-"}</td>
-                <td>${c.proveedor}</td>
+                <td>${escapeHtml(c.numero_factura || "-")}</td>
+                <td>${escapeHtml(c.proveedor)}</td>
                 <td>${c.fecha}</td>
                 <td>${c.estado}</td>
                 <td>Gs. ${Number(c.total).toLocaleString("es-PY")}</td>
-                <td>
-                    <button onclick='verDetalle(${JSON.stringify(c.detalle)})'>
-                        👁
+                <td class="acciones-compra">
+                    <button type="button" class="btn-icon btn-ver-compra"
+                        title="Ver detalle" aria-label="Ver detalle de compra ${c.id}"
+                        onclick="verDetalleCompra(${Number(c.id)})">
+                        <i class="bi bi-eye-fill" aria-hidden="true"></i>
                     </button>
                 </td>
             </tr>
@@ -576,6 +586,10 @@ detalle.forEach(d => {
 
 alert(texto)
 
+}
+
+function verDetalleCompra(compraId){
+    verDetalle(detallesDeCompra.get(Number(compraId)) || [])
 }
 
 
@@ -770,3 +784,8 @@ async function guardarProducto() {
     }
 
 }
+
+
+
+
+

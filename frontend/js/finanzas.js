@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
 
 const tabla =
 document.getElementById(
@@ -35,7 +35,7 @@ async function cargarFinanzas(){
 
         const res = await fetch(
 
-            "http://127.0.0.1:8000/api/finanzas/movimientos/",
+            window.apiUrl("finanzas/movimientos/"),
 
             {
                 headers
@@ -104,7 +104,7 @@ async function cargarFinanzas(){
                 </td>
 
                 <td>
-                    ${m.descripcion}
+                    ${window.escapeHtml(m.descripcion)}
                 </td>
 
                 <td>
@@ -279,7 +279,7 @@ window.guardarGasto = async function(){
 
         const res = await fetch(
 
-            "http://127.0.0.1:8000/api/finanzas/gastos/",
+            window.apiUrl("finanzas/gastos/"),
 
             {
 
@@ -355,3 +355,8 @@ INICIO
 cargarFinanzas()
 
 })
+
+
+
+
+

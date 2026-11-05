@@ -1,4 +1,4 @@
-let escaneoActivo = true;
+﻿let escaneoActivo = true;
 
 let camaraActiva = false;
 
@@ -54,11 +54,11 @@ function activarCamara() {
 
         container.style.display = 'none';
 
-        boton.innerHTML = '📷 Activar Cámara';
+        boton.innerHTML = '<i class="bi bi-camera-fill" aria-hidden="true"></i> Activar cámara';
 
         camaraActiva = false;
 
-        console.log('📷 Cámara apagada');
+        console.log('Cámara apagada');
 
         return;
     }
@@ -75,7 +75,7 @@ function activarCamara() {
 
     container.style.display = 'block';
 
-    boton.innerHTML = '❌ Apagar Cámara';
+    boton.innerHTML = '<i class="bi bi-camera-video-off-fill" aria-hidden="true"></i> Apagar cámara';
 
 
 
@@ -115,12 +115,16 @@ function activarCamara() {
 
             console.error(err);
 
-            alert('No se pudo iniciar cámara');
+            alert('No se pudo iniciar la cámara');
+
+            camaraActiva = false;
+            container.style.display = 'none';
+            boton.innerHTML = '<i class="bi bi-camera-fill" aria-hidden="true"></i> Activar cámara';
 
             return;
         }
 
-        console.log('📷 Cámara iniciada');
+        console.log('Cámara iniciada');
 
         Quagga.start();
     });
@@ -141,7 +145,7 @@ Quagga.onDetected(async function(result) {
 
     const codigo = result.codeResult.code;
 
-    console.log('📦 Código detectado:', codigo);
+    console.log('Código detectado:', codigo);
 
     buscarProductoPorCodigo(codigo);
 
@@ -165,7 +169,8 @@ async function buscarProductoPorCodigo(codigo) {
     try {
 
         const response = await fetch(
-            'http://127.0.0.1:8000/api/productos/buscar/?q=' + codigo + '/'
+            window.apiUrl('inventario/buscar/?q=' + encodeURIComponent(codigo)),
+            {headers: {"Authorization": "Bearer " + localStorage.getItem("token")}}
         );
 
         if (!response.ok) {
@@ -177,11 +182,11 @@ async function buscarProductoPorCodigo(codigo) {
 
         if (productos.length > 0) {
 
-            agregarProducto(productos[0]);
+            seleccionarProducto(productos[0]);
 
         } else {
 
-            alert('❌ Producto no encontrado');
+            alert('âŒ Producto no encontrado');
         }
 
     } catch(error) {
@@ -189,3 +194,8 @@ async function buscarProductoPorCodigo(codigo) {
         console.error(error);
     }
 }
+
+
+
+
+

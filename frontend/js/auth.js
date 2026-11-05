@@ -1,4 +1,4 @@
-const token = localStorage.getItem("token")
+﻿const token = localStorage.getItem("token")
 
 if (window.location.pathname.includes("login.html")) {
     if (token) {
@@ -15,3 +15,7 @@ if (window.location.pathname.includes("login.html")) {
         }
     }
 }
+
+
+
+

@@ -1,4 +1,4 @@
-function aplicarPermisosMenu() {
+﻿function aplicarPermisosMenu() {
 
     const rol = localStorage.getItem("rol");
 
@@ -38,3 +38,7 @@ function aplicarPermisosMenu() {
     }
 
 }
+
+
+
+

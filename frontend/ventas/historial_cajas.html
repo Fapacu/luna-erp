@@ -84,6 +84,7 @@ min-width:180px;
 
 </style>
 
+<script src="../js/api-config.js"></script>
 </head>
 
 <body>
@@ -241,7 +242,7 @@ async function cargarHistorial(){
 
         const response = await fetch(
 
-            "http://127.0.0.1:8000/api/ventas/caja/historial/",
+            window.apiUrl("ventas/caja/historial/"),
 
             {
 
@@ -482,6 +483,8 @@ cargarHistorial();
 
 </script>
 
+<script src="../js/enter-navigation.js"></script>
+<script src="../js/responsive-tables.js"></script>
 </body>
 
 </html>

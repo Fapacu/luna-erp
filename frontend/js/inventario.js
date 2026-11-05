@@ -1,17 +1,17 @@
-let productoActual = null;
+﻿let productoActual = null;
 
-// 🔓 ABRIR MODAL
+// ABRIR MODAL
 function abrirModal(id) {
     productoActual = id;
     document.getElementById("modalStock").style.display = "flex";
 }
 
-// ❌ CERRAR MODAL
+// âŒ CERRAR MODAL
 function cerrarModal() {
     document.getElementById("modalStock").style.display = "none";
 }
 
-// 💾 GUARDAR AJUSTE
+// GUARDAR AJUSTE
 function guardarAjuste() {
 
     const cantidad = document.getElementById("cantidad").value;
@@ -22,7 +22,7 @@ function guardarAjuste() {
         return;
     }
 
-    fetch("http://127.0.0.1:8000/api/inventario/ajustar-stock/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/inventario/ajustar-stock/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -42,10 +42,10 @@ function guardarAjuste() {
 }
 
 
-// 📦 CARGAR PRODUCTOS
+// CARGAR PRODUCTOS
 function cargarProductos() {
 
-    fetch("http://127.0.0.1:8000/api/productos/", {
+    fetch("https://berry-previews-compensation-big.trycloudflare.com/api/productos/", {
         headers: {
             "Authorization": "Bearer " + localStorage.getItem("token")
         }
@@ -64,7 +64,7 @@ function cargarProductos() {
                     <td>${p.stock}</td>
                     <td>${p.stock_minimo}</td>
                     <td>
-                        <button onclick="abrirModal(${p.id})">⚙</button>
+                        <button onclick="abrirModal(${p.id})">âš™</button>
                     </td>
                 </tr>
             `;
@@ -74,5 +74,10 @@ function cargarProductos() {
 }
 
 
-// 🚀 AUTOLOAD
+// AUTOLOAD
 window.onload = cargarProductos;
+
+
+
+
+

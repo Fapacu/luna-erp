@@ -1,4 +1,4 @@
-// =====================================
+﻿// =====================================
 // TOKEN
 // =====================================
 
@@ -210,7 +210,7 @@ function renderTabla(productos){
         <tr>
 
             <td>
-                ${p.nombre}
+                ${window.escapeHtml(p.nombre)}
             </td>
 
             <td>
@@ -251,7 +251,7 @@ function renderAlertas(alertas){
         <div class="rentable-item">
 
             <span>
-                ${a.nombre}
+                ${window.escapeHtml(a.nombre)}
             </span>
 
             <strong>
@@ -278,7 +278,7 @@ async function cargarFinanciero(){
 
         const res = await fetch(
 
-            "http://127.0.0.1:8000/api/reportes/dashboard-financiero/",
+            window.apiUrl("reportes/dashboard-financiero/"),
 
             {
 
@@ -306,7 +306,7 @@ async function cargarFinanciero(){
 
                 <span>
 
-                    ${p.producto__nombre}
+                    ${window.escapeHtml(p.producto__nombre)}
 
                 </span>
 
@@ -359,7 +359,7 @@ async function cargarReporte(){
 
         const res = await fetch(
 
-            `http://127.0.0.1:8000/api/reportes/dashboard-reporte/?desde=${desde}&hasta=${hasta}`,
+            window.apiUrl(`reportes/dashboard-reporte/?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
 
             {
 
@@ -552,3 +552,8 @@ window.onload = () => {
 
     cargarFinanciero()
 }
+
+
+
+
+
