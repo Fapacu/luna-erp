@@ -8,8 +8,8 @@ from .views import (
 )
 
 urlpatterns = [
-    path('gastos/', registrar_gasto),
-    path('movimientos/', listar_movimientos),
-    path('cuentas-por-pagar/', cuentas_por_pagar),
-    path('cuentas-por-pagar/<int:id>/pagar/', pagar_cuenta_por_pagar),
+    path("gastos/", registrar_gasto),
+    path("movimientos/", listar_movimientos),
+    path("cuentas-por-pagar/", cuentas_por_pagar),
+    path("cuentas-por-pagar/<int:id>/pagar/", pagar_cuenta_por_pagar),
 ]

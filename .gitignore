@@ -37,3 +37,11 @@ node_modules/
 # Archivos temporales
 *.tmp
 *.temp
+
+# Copias de trabajo y respaldos manuales
+*_backup*.*
+* copy.*
+* copy [0-9]*.*
+
+# Configuración local del editor/asistente
+.claude/

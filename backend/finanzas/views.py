@@ -12,7 +12,7 @@ from .models import CuentaPorPagar, MovimientoFinanciero, PagoCuentaPagar
 from .services import registrar_egreso
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def registrar_gasto(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
@@ -27,10 +27,16 @@ def registrar_gasto(request):
     categoria = data.get("categoria", "")
     metodo_pago = data.get("metodo_pago") or "efectivo"
     categorias_validas = {opcion[0] for opcion in MovimientoFinanciero.CATEGORIAS}
-    if (not monto.is_finite() or monto <= 0 or monto.as_tuple().exponent < -2
-            or not isinstance(descripcion, str) or not descripcion.strip()
-            or categoria not in categorias_validas
-            or not isinstance(metodo_pago, str) or len(metodo_pago) > 50):
+    if (
+        not monto.is_finite()
+        or monto <= 0
+        or monto.as_tuple().exponent < -2
+        or not isinstance(descripcion, str)
+        or not descripcion.strip()
+        or categoria not in categorias_validas
+        or not isinstance(metodo_pago, str)
+        or len(metodo_pago) > 50
+    ):
         return Response({"error": "Categoría, descripción y monto válido son obligatorios."}, status=400)
 
     with transaction.atomic():
@@ -42,37 +48,38 @@ def registrar_gasto(request):
             metodo_pago=metodo_pago,
         )
         registrar_auditoria(
-            usuario=request.user, modulo="FINANZAS", accion="REGISTRAR_GASTO",
+            usuario=request.user,
+            modulo="FINANZAS",
+            accion="REGISTRAR_GASTO",
             referencia=f"Movimiento #{movimiento.id}",
             detalle=f"{categoria}: {descripcion.strip()[:150]} - {monto}",
         )
 
-    return Response({
-        "success": True,
-        "id": movimiento.id
-    })
+    return Response({"success": True, "id": movimiento.id})
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def listar_movimientos(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
 
-    movimientos = MovimientoFinanciero.objects.all().order_by('-fecha')
+    movimientos = MovimientoFinanciero.objects.all().order_by("-fecha")
 
-    return Response([
-        {
-            "id": m.id,
-            "tipo": m.tipo,
-            "categoria": m.categoria,
-            "descripcion": m.descripcion,
-            "monto": float(m.monto),
-            "fecha": m.fecha,
-            "metodo_pago": m.metodo_pago,
-            "referencia": m.referencia,
-        }
-        for m in movimientos
-    ])
+    return Response(
+        [
+            {
+                "id": m.id,
+                "tipo": m.tipo,
+                "categoria": m.categoria,
+                "descripcion": m.descripcion,
+                "monto": float(m.monto),
+                "fecha": m.fecha,
+                "metodo_pago": m.metodo_pago,
+                "referencia": m.referencia,
+            }
+            for m in movimientos
+        ]
+    )
 
 
 def _serializar_cuenta(cuenta):
@@ -88,7 +95,7 @@ def _serializar_cuenta(cuenta):
     }
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def cuentas_por_pagar(request):
     """Deudas con proveedores por compras a crédito."""
@@ -99,7 +106,7 @@ def cuentas_por_pagar(request):
     return Response([_serializar_cuenta(c) for c in cuentas])
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def pagar_cuenta_por_pagar(request, id):
     """Registra un pago (total o parcial) a un proveedor."""
@@ -114,15 +121,19 @@ def pagar_cuenta_por_pagar(request, id):
 
     metodo_pago = request.data.get("metodo_pago") or "efectivo"
     referencia = request.data.get("referencia") or ""
-    if (not isinstance(metodo_pago, str) or len(metodo_pago) > 50
-            or not isinstance(referencia, str) or len(referencia) > 100):
+    if (
+        not isinstance(metodo_pago, str)
+        or len(metodo_pago) > 50
+        or not isinstance(referencia, str)
+        or len(referencia) > 100
+    ):
         return Response({"error": "Método de pago o referencia inválidos."}, status=400)
 
     with transaction.atomic():
         try:
-            cuenta = CuentaPorPagar.objects.select_for_update().select_related(
-                "proveedor", "compra"
-            ).get(id=id)
+            cuenta = (
+                CuentaPorPagar.objects.select_for_update().select_related("proveedor", "compra").get(id=id)
+            )
         except CuentaPorPagar.DoesNotExist:
             return Response({"error": "Cuenta por pagar no encontrada"}, status=404)
 
@@ -132,8 +143,11 @@ def pagar_cuenta_por_pagar(request, id):
             return Response({"error": "El pago supera el saldo pendiente."}, status=400)
 
         PagoCuentaPagar.objects.create(
-            cuenta=cuenta, monto=monto, usuario=request.user,
-            metodo_pago=metodo_pago, referencia=referencia.strip() or None,
+            cuenta=cuenta,
+            monto=monto,
+            usuario=request.user,
+            metodo_pago=metodo_pago,
+            referencia=referencia.strip() or None,
         )
         cuenta.saldo -= monto
         cuenta.pagado = cuenta.saldo == 0
@@ -152,7 +166,9 @@ def pagar_cuenta_por_pagar(request, id):
             referencia=compra.numero_factura or f"Compra #{compra.id}",
         )
         registrar_auditoria(
-            usuario=request.user, modulo="FINANZAS", accion="PAGAR_PROVEEDOR",
+            usuario=request.user,
+            modulo="FINANZAS",
+            accion="PAGAR_PROVEEDOR",
             referencia=f"Compra #{compra.id}",
             detalle=f"Pago: {monto}; saldo restante: {cuenta.saldo}",
         )

@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Venta, DetalleVenta
+
+from .models import DetalleVenta, Venta
 
 
 class DetalleVentaInline(admin.TabularInline):
@@ -9,5 +10,5 @@ class DetalleVentaInline(admin.TabularInline):
 
 @admin.register(Venta)
 class VentaAdmin(admin.ModelAdmin):
-    list_display = ('id', 'total', 'metodo_pago', 'fecha')
+    list_display = ("id", "total", "metodo_pago", "fecha")
     inlines = [DetalleVentaInline]

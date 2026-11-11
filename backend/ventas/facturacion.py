@@ -26,6 +26,7 @@ class FacturacionError(ValueError):
 
 # ---------------------------------------------------------------- RUC / CI
 
+
 def digito_verificador_ruc(numero):
     """Dígito verificador del RUC paraguayo (módulo 11, base máxima 11)."""
     total = 0
@@ -60,6 +61,7 @@ def normalizar_ci(valor):
 
 # ---------------------------------------------------------------- Montos
 
+
 def redondear_gs(valor):
     return Decimal(valor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
@@ -82,13 +84,51 @@ def liquidar_iva(detalles):
     }
 
 
-_UNIDADES = ("", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
-             "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete",
-             "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés",
-             "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve")
+_UNIDADES = (
+    "",
+    "uno",
+    "dos",
+    "tres",
+    "cuatro",
+    "cinco",
+    "seis",
+    "siete",
+    "ocho",
+    "nueve",
+    "diez",
+    "once",
+    "doce",
+    "trece",
+    "catorce",
+    "quince",
+    "dieciséis",
+    "diecisiete",
+    "dieciocho",
+    "diecinueve",
+    "veinte",
+    "veintiuno",
+    "veintidós",
+    "veintitrés",
+    "veinticuatro",
+    "veinticinco",
+    "veintiséis",
+    "veintisiete",
+    "veintiocho",
+    "veintinueve",
+)
 _DECENAS = ("", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa")
-_CENTENAS = ("", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",
-             "seiscientos", "setecientos", "ochocientos", "novecientos")
+_CENTENAS = (
+    "",
+    "ciento",
+    "doscientos",
+    "trescientos",
+    "cuatrocientos",
+    "quinientos",
+    "seiscientos",
+    "setecientos",
+    "ochocientos",
+    "novecientos",
+)
 
 
 def _menor_mil(n):
@@ -110,8 +150,8 @@ def numero_a_letras(valor):
     if n == 0:
         return "cero"
     grupos = [
-        (10 ** 12, "billón", "billones"),
-        (10 ** 6, "millón", "millones"),
+        (10**12, "billón", "billones"),
+        (10**6, "millón", "millones"),
         (1000, "mil", "mil"),
     ]
     partes = []
@@ -133,22 +173,27 @@ def numero_a_letras(valor):
 
 # ---------------------------------------------------------------- Configuración
 
+
 def validar_configuracion(config, hoy=None):
     """Comprueba que el emisor y el timbrado permitan emitir hoy."""
     hoy = hoy or timezone.localdate()
     faltantes = [
-        nombre for nombre, valor in (
+        nombre
+        for nombre, valor in (
             ("razón social", config.razon_social),
             ("RUC", config.ruc),
             ("dirección", config.direccion),
             ("timbrado", config.timbrado),
             ("inicio de vigencia del timbrado", config.timbrado_inicio),
             ("fin de vigencia del timbrado", config.timbrado_fin),
-        ) if not valor
+        )
+        if not valor
     ]
     if faltantes:
         raise FacturacionError(
-            "Falta configurar la facturación (" + ", ".join(faltantes) + "). Un administrador debe completarla en Facturación."
+            "Falta configurar la facturación ("
+            + ", ".join(faltantes)
+            + "). Un administrador debe completarla en Facturación."
         )
     if not (config.timbrado_inicio <= hoy <= config.timbrado_fin):
         raise FacturacionError("El timbrado no está vigente para la fecha de hoy.")
@@ -161,6 +206,7 @@ def numero_formateado(establecimiento, punto_expedicion, numero):
 
 
 # ---------------------------------------------------------------- Receptor
+
 
 def _texto(datos, campo, limite):
     valor = datos.get(campo) or ""
@@ -191,7 +237,9 @@ def validar_datos_cliente(datos):
         documento = RUC_SIN_NOMBRE
         razon_social = RAZON_SOCIAL_SIN_NOMBRE
     else:
-        documento = normalizar_ruc(datos.get("documento")) if tipo == "RUC" else normalizar_ci(datos.get("documento"))
+        documento = (
+            normalizar_ruc(datos.get("documento")) if tipo == "RUC" else normalizar_ci(datos.get("documento"))
+        )
         if not razon_social:
             raise FacturacionError("Ingresa el nombre o la razón social del cliente.")
 
@@ -224,6 +272,7 @@ def _guardar_cliente(datos):
 
 # ---------------------------------------------------------------- Emisión
 
+
 def emitir_factura(venta, datos_cliente, usuario):
     """Emite la factura de una venta. Debe llamarse dentro de transaction.atomic()."""
     if venta.estado != "COMPLETADA":
@@ -241,7 +290,9 @@ def emitir_factura(venta, datos_cliente, usuario):
 
     numero = numero_formateado(config.establecimiento, config.punto_expedicion, config.numero_siguiente)
     if Factura.objects.filter(numero=numero).exists():
-        raise FacturacionError(f"El número de factura {numero} ya fue utilizado. Revisa la numeración configurada.")
+        raise FacturacionError(
+            f"El número de factura {numero} ya fue utilizado. Revisa la numeración configurada."
+        )
 
     factura = Factura.objects.create(
         venta=venta,

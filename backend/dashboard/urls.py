@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import estadisticas, alertas_stock
+
+from .views import alertas_stock, estadisticas
 
 urlpatterns = [
-    path('', estadisticas),
-    path('alertas-stock/', alertas_stock),
+    path("", estadisticas),
+    path("alertas-stock/", alertas_stock),
 ]

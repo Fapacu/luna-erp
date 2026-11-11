@@ -1,13 +1,11 @@
 from django.urls import path
-from .views import *
+
+from . import views
 
 urlpatterns = [
-    path('dashboard/', dashboard_data),
-    path('productos-mas-vendidos/', productos_mas_vendidos),
-    path('alertas-stock/', alertas_stock),
-    path('exportar-pdf/', exportar_pdf),
-
-    # 🔥 endpoint principal
-    path('dashboard-reporte/', dashboard_reporte),
-    path('dashboard-financiero/', dashboard_financiero),
+    path("dashboard/", views.dashboard_data),
+    path("productos-mas-vendidos/", views.productos_mas_vendidos),
+    path("exportar-pdf/", views.exportar_pdf),
+    path("dashboard-reporte/", views.dashboard_reporte),
+    path("dashboard-financiero/", views.dashboard_financiero),
 ]

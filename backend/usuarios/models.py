@@ -1,9 +1,8 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 
 
 class Role(models.Model):
-
     nombre = models.CharField(max_length=50)
 
     def __str__(self):
@@ -11,7 +10,6 @@ class Role(models.Model):
 
 
 class UsuarioPerfil(models.Model):
-
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
 

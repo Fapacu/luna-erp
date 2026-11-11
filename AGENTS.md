@@ -45,6 +45,7 @@ Comprobaciones útiles:
 |---|---|
 | `python manage.py check` | Revisión de configuración Django |
 | `python manage.py makemigrations --check --dry-run` | Detecta cambios de modelos sin migración |
+| `ruff check . ..	ests` y `ruff format . ..	ests` (desde `backend`) | Lint y formato del código Python |
 | `python manage.py showmigrations` | Muestra el estado de las migraciones |
 | `python manage.py migrate` | Aplica migraciones a la base configurada |
 | `python manage.py test --settings=config.settings_test` | Prueba flujos backend en una base SQLite temporal |
@@ -67,7 +68,6 @@ backend/
   reportes/     Consultas, reportes y generación PDF
   dashboard/    Indicadores y alertas
   auditoria/    Registro y consulta de actividad
-  middleware/   Permisos y controles compartidos
 frontend/
   *.html        Login, dashboard, reportes, usuarios, finanzas y auditoría
   ventas/       Punto de venta, historial de cajas y libreta
@@ -77,7 +77,11 @@ frontend/
   css/          Estilos generales y específicos
 ```
 
-Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py`, `services.py`/`serializers.py` cuando corresponda y `migrations/`.
+Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py` (con imports explícitos), `services.py` cuando corresponda y `migrations/`. Los permisos por rol están en `usuarios/permissions.py` (`requiere_roles`, `obtener_rol`); no hay serializers de DRF: las vistas validan y arman sus respuestas.
+
+Instalación nueva: `migrate` crea los roles (migración `usuarios/0003_roles_iniciales`) y `python manage.py crear_admin --username <nombre>` crea el primer administrador.
+
+Estilo: el backend pasa `ruff check` y `ruff format` con `backend/pyproject.toml`; mantenlo así al modificar código. No dejes `console.log` de depuración en el frontend.
 
 ## 5. Base de datos y reglas de negocio
 

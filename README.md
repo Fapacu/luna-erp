@@ -28,8 +28,11 @@ Los módulos principales están implementados y existe una suite de pruebas de f
    python manage.py makemigrations --check --dry-run
    python manage.py showmigrations
    python manage.py migrate
+   python manage.py crear_admin --username admin
    python manage.py runserver
    ```
+
+   `migrate` crea automáticamente los roles ADMIN, GERENTE y CAJERO. `crear_admin` crea el primer administrador (pide la contraseña por teclado); el resto de los usuarios se crean desde la pantalla Usuarios.
 
 5. En otra terminal, desde la raíz, sirve el frontend por HTTP:
 
@@ -37,7 +40,9 @@ Los módulos principales están implementados y existe una suite de pruebas de f
    python -m http.server 5500 --directory frontend
    ```
 
-   Abre `http://127.0.0.1:5500/login.html`. No uses `file://`. Para entrar desde un teléfono, sirve el frontend en una IP LAN, agrega esa IP a `ALLOWED_HOSTS` y agrega el origen exacto a `CORS_ALLOWED_ORIGINS`; inicia Django escuchando en la interfaz LAN y habilita el puerto en el firewall.
+   Abre `http://127.0.0.1:5500/login.html`. No uses `file://`.
+
+6. Primer uso: inicia sesión con el administrador, completa **Facturación** (si vas a emitir facturas), carga productos con su tasa de IVA, crea los usuarios cajeros y abre una caja desde el POS. Para entrar desde un teléfono, sirve el frontend en una IP LAN, agrega esa IP a `ALLOWED_HOSTS` y agrega el origen exacto a `CORS_ALLOWED_ORIGINS`; inicia Django escuchando en la interfaz LAN y habilita el puerto en el firewall.
 
 ## Pruebas
 
@@ -51,6 +56,15 @@ python manage.py test --settings=config.settings_test --verbosity 2
 El runner `config.test_runner.RepoTestRunner` descubre automáticamente la carpeta `tests/` de la raíz.
 
 También comprueba sintaxis JavaScript con `node --check frontend/js/<archivo>.js`.
+
+Estilo del código Python: el backend usa [Ruff](https://docs.astral.sh/ruff/) con la configuración de `backend/pyproject.toml` (herramienta de desarrollo, no se instala en producción):
+
+```powershell
+cd backend
+pip install ruff
+ruff check . ..	ests
+ruff format . ..	ests
+```
 
 ## Configuración de API
 

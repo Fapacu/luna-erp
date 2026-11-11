@@ -546,7 +546,6 @@ function iniciarBuscadorTabla(){
 
 async function guardarProveedor(){
 
-    console.log("Guardar proveedor desde MODULO PROVEEDORES");
 
     const nombre =
     document.getElementById("nombreProveedor")
@@ -861,7 +860,6 @@ window.quitarProductoProveedor = quitarProductoProveedor;
    FIN DEL MÓDULO
 ===================================================== */
 
-console.log("Módulo Proveedores cargado correctamente.");
 
 
 

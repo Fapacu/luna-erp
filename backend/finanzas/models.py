@@ -1,145 +1,82 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 
 
 class MovimientoFinanciero(models.Model):
-
     TIPOS = (
-        ('INGRESO', 'INGRESO'),
-        ('EGRESO', 'EGRESO'),
+        ("INGRESO", "INGRESO"),
+        ("EGRESO", "EGRESO"),
     )
 
     CATEGORIAS = (
-        ('VENTA', 'VENTA'),
-        ('COMPRA', 'COMPRA'),
-        ('GASTO', 'GASTO'),
-        ('SERVICIO', 'SERVICIO'),
-        ('SALARIO', 'SALARIO'),
-        ('OTRO', 'OTRO'),
+        ("VENTA", "VENTA"),
+        ("COMPRA", "COMPRA"),
+        ("GASTO", "GASTO"),
+        ("SERVICIO", "SERVICIO"),
+        ("SALARIO", "SALARIO"),
+        ("OTRO", "OTRO"),
     )
 
-    tipo = models.CharField(
-        max_length=20,
-        choices=TIPOS
-    )
+    tipo = models.CharField(max_length=20, choices=TIPOS)
 
-    categoria = models.CharField(
-        max_length=50,
-        choices=CATEGORIAS
-    )
+    categoria = models.CharField(max_length=50, choices=CATEGORIAS)
 
     descripcion = models.TextField()
 
-    monto = models.DecimalField(
-        max_digits=12,
-        decimal_places=2
-    )
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
 
-    fecha = models.DateTimeField(
-        auto_now_add=True
-    )
+    fecha = models.DateTimeField(auto_now_add=True)
 
-    usuario = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
-    metodo_pago = models.CharField(
-        max_length=50,
-        default='efectivo'
-    )
+    metodo_pago = models.CharField(max_length=50, default="efectivo")
 
-    referencia = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True
-    )
+    referencia = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
-        ordering = ['-fecha']
+        ordering = ["-fecha"]
 
     def __str__(self):
         return f"{self.tipo} - {self.categoria} - {self.monto}"
 
 
 class CuentaPorPagar(models.Model):
+    proveedor = models.ForeignKey("compras.Proveedor", on_delete=models.CASCADE)
 
-    proveedor = models.ForeignKey(
-        'compras.Proveedor',
-        on_delete=models.CASCADE
-    )
+    compra = models.ForeignKey("compras.Compra", on_delete=models.CASCADE)
 
-    compra = models.ForeignKey(
-        'compras.Compra',
-        on_delete=models.CASCADE
-    )
+    total = models.DecimalField(max_digits=12, decimal_places=2)
 
-    total = models.DecimalField(
-        max_digits=12,
-        decimal_places=2
-    )
-
-    saldo = models.DecimalField(
-        max_digits=12,
-        decimal_places=2
-    )
+    saldo = models.DecimalField(max_digits=12, decimal_places=2)
 
     fecha_vencimiento = models.DateField()
 
-    pagado = models.BooleanField(
-        default=False
-    )
+    pagado = models.BooleanField(default=False)
 
-    fecha_creacion = models.DateTimeField(
-        auto_now_add=True
-    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['pagado', 'fecha_vencimiento']
+        ordering = ["pagado", "fecha_vencimiento"]
 
     def __str__(self):
         return f"{self.proveedor} - Saldo: {self.saldo}"
 
 
 class PagoCuentaPagar(models.Model):
+    cuenta = models.ForeignKey(CuentaPorPagar, on_delete=models.CASCADE, related_name="pagos")
 
-    cuenta = models.ForeignKey(
-        CuentaPorPagar,
-        on_delete=models.CASCADE,
-        related_name='pagos'
-    )
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
 
-    monto = models.DecimalField(
-        max_digits=12,
-        decimal_places=2
-    )
+    fecha = models.DateTimeField(auto_now_add=True)
 
-    fecha = models.DateTimeField(
-        auto_now_add=True
-    )
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
-    usuario = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
+    metodo_pago = models.CharField(max_length=50, default="efectivo")
 
-    metodo_pago = models.CharField(
-        max_length=50,
-        default='efectivo'
-    )
-
-    referencia = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True
-    )
+    referencia = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
-        ordering = ['-fecha']
+        ordering = ["-fecha"]
 
     def __str__(self):
         return f"Pago {self.monto} - {self.cuenta.proveedor}"

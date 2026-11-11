@@ -1,51 +1,32 @@
 from django.urls import path
-from ventas import views
 
-from .views import (
-    crear_venta,
-    abrir_caja,
-    cerrar_caja,
-    caja_actual,
-    historial_ventas,
-    historial_cajas,
-    estado_caja,
-    anular_venta,
-    retiro_caja,
-    gasto_caja,
-    clientes,
-    cliente_detalle,
-    libreta,
-    detalle_libreta,
-    cobrar_libreta
-)
+from . import views
 
 urlpatterns = [
-
-    path('', crear_venta),
-
-    path('anular/<int:venta_id>/', anular_venta),
-
-    path('caja/abrir/', abrir_caja),
-    path('caja/cerrar/', cerrar_caja),
-    path('caja/actual/', caja_actual),
-    path('caja/historial/', historial_cajas),
-    path('caja/estado/', estado_caja),
-
-    path('retiro/', retiro_caja),
-    path('gasto/', gasto_caja),
-    path('clientes/', clientes),
-    path('clientes/<int:id>/', cliente_detalle),
-    path('libreta/',libreta),
-    path('libreta/<int:id>/',detalle_libreta),
-    path('libreta/<int:id>/cobrar/',cobrar_libreta),
-    path('historial/', views.historial_ventas, name='historial_ventas'),
-    path('ticket/<int:venta_id>/', views.imprimir_ticket),
-    path('productos/buscar/',views.buscar_productos,name='buscar_productos'),
-    path("libreta/buscar/",views.buscar_libreta),
-    path('reportes/',views.reportes,name='reportes'),
-    path('facturacion/configuracion/', views.configuracion_facturacion),
-    path('facturacion/clientes/', views.buscar_cliente_documento),
-    path('factura/<int:venta_id>/', views.imprimir_factura),
-    path('<int:venta_id>/facturar/', views.facturar_venta),
-
+    # Ventas
+    path("", views.crear_venta),
+    path("historial/", views.historial_ventas, name="historial_ventas"),
+    path("anular/<int:venta_id>/", views.anular_venta),
+    path("ticket/<int:venta_id>/", views.imprimir_ticket),
+    path("reportes/", views.reportes, name="reportes"),
+    # Cajas
+    path("caja/abrir/", views.abrir_caja),
+    path("caja/cerrar/", views.cerrar_caja),
+    path("caja/actual/", views.caja_actual),
+    path("caja/historial/", views.historial_cajas),
+    path("caja/estado/", views.estado_caja),
+    path("retiro/", views.retiro_caja),
+    path("gasto/", views.gasto_caja),
+    # Clientes y libreta (cuentas por cobrar)
+    path("clientes/", views.clientes),
+    path("clientes/<int:id>/", views.cliente_detalle),
+    path("libreta/", views.libreta),
+    path("libreta/buscar/", views.buscar_libreta),
+    path("libreta/<int:id>/", views.detalle_libreta),
+    path("libreta/<int:id>/cobrar/", views.cobrar_libreta),
+    # Facturación
+    path("facturacion/configuracion/", views.configuracion_facturacion),
+    path("facturacion/clientes/", views.buscar_cliente_documento),
+    path("factura/<int:venta_id>/", views.imprimir_factura),
+    path("<int:venta_id>/facturar/", views.facturar_venta),
 ]

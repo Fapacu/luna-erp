@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Compra, Proveedor, DetalleCompra
+
+from .models import Compra, DetalleCompra, Proveedor
 
 
 class DetalleCompraInline(admin.TabularInline):
@@ -9,19 +10,17 @@ class DetalleCompraInline(admin.TabularInline):
 
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
+    list_display = ("id", "nombre", "telefono")
 
-    list_display = ('id', 'nombre', 'telefono')
-
-    search_fields = ('nombre', 'producto')
+    search_fields = ("nombre", "producto")
 
 
 @admin.register(Compra)
 class CompraAdmin(admin.ModelAdmin):
+    list_display = ("id", "proveedor", "fecha")
 
-    list_display = ('id', 'proveedor', 'fecha')
+    list_filter = ("fecha",)
 
-    list_filter = ('fecha',)
-
-    search_fields = ('proveedor__nombre',)
+    search_fields = ("proveedor__nombre",)
 
     inlines = [DetalleCompraInline]

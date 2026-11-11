@@ -1,14 +1,9 @@
 from decimal import Decimal
+
 from .models import MovimientoStock
 
-def registrar_movimiento(
-    producto,
-    tipo,
-    cantidad,
-    usuario=None,
-    motivo=""
-):
 
+def registrar_movimiento(producto, tipo, cantidad, usuario=None, motivo=""):
     cantidad = Decimal(str(cantidad))
 
     stock_anterior = producto.stock
@@ -17,11 +12,8 @@ def registrar_movimiento(
         producto.stock += cantidad
 
     elif tipo == "VENTA":
-
         if producto.stock < cantidad:
-            raise Exception(
-                f"Stock insuficiente para {producto.nombre}"
-            )
+            raise Exception(f"Stock insuficiente para {producto.nombre}")
 
         producto.stock -= cantidad
 
@@ -39,5 +31,5 @@ def registrar_movimiento(
         usuario=usuario,
         motivo=motivo,
         stock_anterior=stock_anterior,
-        stock_nuevo=stock_nuevo
+        stock_nuevo=stock_nuevo,
     )

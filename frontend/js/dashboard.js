@@ -40,11 +40,6 @@ fetch(
 
 .then(data => {
 
-    console.log(
-        "DATA DASHBOARD:",
-        data
-    )
-
     if(
         document.getElementById(
             "ventas_hoy"

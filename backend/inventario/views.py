@@ -1,23 +1,30 @@
-from django.db.models import Q, CharField
-from django.db import transaction
-from django.db import DatabaseError, IntegrityError
-from decimal import Decimal, InvalidOperation
-from django.db.models.functions import Cast
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from inventario.models import Producto, LoteProducto
-from .services import registrar_movimiento
-from django.utils.timezone import now
+"""Productos, búsqueda, ajustes de stock y alertas de vencimiento."""
+
+import logging
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
+
+from django.db import DatabaseError, IntegrityError, transaction
+from django.db.models import CharField, Q
+from django.db.models.functions import Cast
+from django.utils.timezone import now
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import *
+from rest_framework.response import Response
+
 from compras.models import Proveedor
 from usuarios.permissions import requiere_roles
+
+from .models import LoteProducto, Producto
+from .services import registrar_movimiento
+
+logger = logging.getLogger(__name__)
+
 
 # ======================
 # CREAR PRODUCTO
 # ======================
+
 
 def _tasa_iva(valor):
     """Valida la tasa de IVA (10, 5 o 0); lanza ValueError si no es válida."""
@@ -30,7 +37,7 @@ def _tasa_iva(valor):
     return tasa
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def crear_producto(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
@@ -51,12 +58,23 @@ def crear_producto(request):
         precio_venta = Decimal(str(request.data.get("precio_venta", "")))
         stock = Decimal(str(request.data.get("stock", 0)))
         stock_minimo = Decimal(str(request.data.get("stock_minimo", 5)))
-        if (not nombre or len(nombre) > 150 or not codigo_barra or len(codigo_barra) > 50
-                or not unidad or len(unidad) > 10
-                or any(not value.is_finite() for value in (precio_compra, precio_venta, stock, stock_minimo))
-                or precio_compra < 0 or precio_venta <= 0 or stock < 0 or stock_minimo < 0
-                or precio_compra.as_tuple().exponent < -2 or precio_venta.as_tuple().exponent < -2
-                or stock.as_tuple().exponent < -3 or stock_minimo != stock_minimo.to_integral_value()):
+        if (
+            not nombre
+            or len(nombre) > 150
+            or not codigo_barra
+            or len(codigo_barra) > 50
+            or not unidad
+            or len(unidad) > 10
+            or any(not value.is_finite() for value in (precio_compra, precio_venta, stock, stock_minimo))
+            or precio_compra < 0
+            or precio_venta <= 0
+            or stock < 0
+            or stock_minimo < 0
+            or precio_compra.as_tuple().exponent < -2
+            or precio_venta.as_tuple().exponent < -2
+            or stock.as_tuple().exponent < -3
+            or stock_minimo != stock_minimo.to_integral_value()
+        ):
             raise ValueError
     except (InvalidOperation, TypeError, ValueError, AttributeError):
         return Response({"error": "Complete nombre, precios y existencias con valores válidos."}, status=400)
@@ -100,62 +118,62 @@ def crear_producto(request):
             if proveedor:
                 proveedor.productos.add(producto)
     except DatabaseError:
-        import logging
-        logging.getLogger(__name__).exception("No se pudo crear el producto")
-        return Response({"error": "No se pudo crear el producto. Verifique los datos e intente nuevamente."}, status=500)
+        logger.exception("No se pudo crear el producto")
+        return Response(
+            {"error": "No se pudo crear el producto. Verifique los datos e intente nuevamente."}, status=500
+        )
 
-    return Response({
-        "mensaje": "Producto creado",
-        "id": producto.id,
-        "nombre": producto.nombre,
-        "precio_compra": producto.precio_compra,
-        "precio_venta": producto.precio_venta,
-        "stock": producto.stock,
-        "stock_minimo": producto.stock_minimo,
-        "unidad": producto.unidad,
-        "tasa_iva": producto.tasa_iva,
-    })
-
-    
-
-
-# ======================
-# DETALLE / EDITAR / ELIMINAR
-# ======================
-
-@api_view(['GET','PUT','DELETE'])
-@permission_classes([IsAuthenticated])
-def producto_detalle(request, id):
-
-    try:
-        producto = Producto.objects.get(id=id)
-    except Producto.DoesNotExist:
-        return Response({"error":"Producto no encontrado"}, status=404)
-
-
-    # ======================
-    # OBTENER PRODUCTO
-    # ======================
-    if request.method == 'GET':
-
-        return Response({
+    return Response(
+        {
+            "mensaje": "Producto creado",
             "id": producto.id,
-            "codigo_barra": producto.codigo_barra,
             "nombre": producto.nombre,
             "precio_compra": producto.precio_compra,
             "precio_venta": producto.precio_venta,
             "stock": producto.stock,
             "stock_minimo": producto.stock_minimo,
             "unidad": producto.unidad,
-            "activo": producto.activo,
             "tasa_iva": producto.tasa_iva,
-        })
+        }
+    )
 
+
+# ======================
+# DETALLE / EDITAR / ELIMINAR
+# ======================
+
+
+@api_view(["GET", "PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def producto_detalle(request, id):
+    try:
+        producto = Producto.objects.get(id=id)
+    except Producto.DoesNotExist:
+        return Response({"error": "Producto no encontrado"}, status=404)
+
+    # ======================
+    # OBTENER PRODUCTO
+    # ======================
+    if request.method == "GET":
+        return Response(
+            {
+                "id": producto.id,
+                "codigo_barra": producto.codigo_barra,
+                "nombre": producto.nombre,
+                "precio_compra": producto.precio_compra,
+                "precio_venta": producto.precio_venta,
+                "stock": producto.stock,
+                "stock_minimo": producto.stock_minimo,
+                "unidad": producto.unidad,
+                "activo": producto.activo,
+                "tasa_iva": producto.tasa_iva,
+            }
+        )
 
     # ======================
     # ACTUALIZAR PRODUCTO
     # ======================
-    if request.method == 'PUT':
+    if request.method == "PUT":
         requiere_roles(request.user, "ADMIN", "GERENTE")
         try:
             if "activo" in request.data:
@@ -203,13 +221,12 @@ def producto_detalle(request, id):
 
         producto.save()
 
-        return Response({"mensaje":"Producto actualizado"})
-
+        return Response({"mensaje": "Producto actualizado"})
 
     # ======================
     # ELIMINAR PRODUCTO
     # ======================
-    if request.method == 'DELETE':
+    if request.method == "DELETE":
         requiere_roles(request.user, "ADMIN", "GERENTE")
 
         producto.activo = False
@@ -222,10 +239,10 @@ def producto_detalle(request, id):
 # BUSCAR PRODUCTOS
 # ======================
 
-@api_view(['GET'])
+
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def buscar_producto(request):
-
     query = request.GET.get("q", "")
     incluir_inactivos = request.GET.get("incluir_inactivos") == "1"
 
@@ -235,35 +252,35 @@ def buscar_producto(request):
     else:
         productos_base = productos_base.filter(activo=True)
 
-    productos = productos_base.annotate(
-        precio_str=Cast('precio_venta', CharField())
-    ).filter(
-        Q(codigo_barra__icontains=query) |
-        Q(nombre__icontains=query) |
-        Q(id__icontains=query) |
-        Q(precio_str__icontains=query)
+    productos = productos_base.annotate(precio_str=Cast("precio_venta", CharField())).filter(
+        Q(codigo_barra__icontains=query)
+        | Q(nombre__icontains=query)
+        | Q(id__icontains=query)
+        | Q(precio_str__icontains=query)
     )[:20]
 
     data = []
 
     for p in productos:
-        data.append({
-            "id": p.id,
-            "nombre": p.nombre,
-            "precio_venta": p.precio_venta,
-            "stock": p.stock,
-            "stock_minimo": p.stock_minimo,
-            "codigo_barra": p.codigo_barra,
-            "unidad": p.unidad,
-            "imagen": p.imagen.url if p.imagen else "",
-            "activo": p.activo,
-            "tasa_iva": p.tasa_iva,
-        })
+        data.append(
+            {
+                "id": p.id,
+                "nombre": p.nombre,
+                "precio_venta": p.precio_venta,
+                "stock": p.stock,
+                "stock_minimo": p.stock_minimo,
+                "codigo_barra": p.codigo_barra,
+                "unidad": p.unidad,
+                "imagen": p.imagen.url if p.imagen else "",
+                "activo": p.activo,
+                "tasa_iva": p.tasa_iva,
+            }
+        )
 
     return Response(data)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def ajustar_stock(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
@@ -302,8 +319,9 @@ def ajustar_stock(request):
             producto = Producto.objects.select_for_update().get(id=producto_id, activo=True)
             if producto.stock + cantidad < 0:
                 return Response({"error": "El ajuste dejaría el stock negativo."}, status=400)
-            registrar_movimiento(producto=producto, tipo="AJUSTE", cantidad=cantidad,
-                                 usuario=request.user, motivo=motivo)
+            registrar_movimiento(
+                producto=producto, tipo="AJUSTE", cantidad=cantidad, usuario=request.user, motivo=motivo
+            )
     except Producto.DoesNotExist:
         return Response({"error": "Producto no encontrado"}, status=404)
     except ValueError as e:
@@ -312,26 +330,23 @@ def ajustar_stock(request):
     return Response({"msg": "Stock actualizado correctamente"})
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def alertas_vencimiento(request):
-
     limite = now().date() + timedelta(days=30)
 
-    lotes = LoteProducto.objects.filter(
-        fecha_vencimiento__lte=limite,
-        cantidad__gt=0
-    )
+    lotes = LoteProducto.objects.filter(fecha_vencimiento__lte=limite, cantidad__gt=0)
 
     data = []
 
-    for l in lotes:
-
-        data.append({
-            "producto": l.producto.nombre,
-            "lote": l.lote,
-            "vence": l.fecha_vencimiento,
-            "cantidad": float(l.cantidad)
-        })
+    for lote in lotes.select_related("producto"):
+        data.append(
+            {
+                "producto": lote.producto.nombre,
+                "lote": lote.lote,
+                "vence": lote.fecha_vencimiento,
+                "cantidad": float(lote.cantidad),
+            }
+        )
 
     return Response(data)

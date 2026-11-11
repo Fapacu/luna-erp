@@ -21,8 +21,8 @@ from ventas.models import (
 class ERPFlowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.admin_role = Role.objects.create(nombre="ADMIN")
-        cls.cashier_role = Role.objects.create(nombre="CAJERO")
+        cls.admin_role = Role.objects.get_or_create(nombre="ADMIN")[0]
+        cls.cashier_role = Role.objects.get_or_create(nombre="CAJERO")[0]
         cls.admin = User.objects.create_user("admin-test", password="testing-pass-123")
         cls.cashier = User.objects.create_user("cajero-test", password="testing-pass-123")
         UsuarioPerfil.objects.create(user=cls.admin, role=cls.admin_role)
@@ -43,9 +43,7 @@ class ERPFlowTests(TestCase):
 
     def abrir_caja(self, user=None, monto="100.00"):
         self.client.force_authenticate(user or self.admin)
-        response = self.client.post(
-            "/api/ventas/caja/abrir/", {"monto_inicial": monto}, format="json"
-        )
+        response = self.client.post("/api/ventas/caja/abrir/", {"monto_inicial": monto}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         return Caja.objects.get(pk=response.data["caja_id"])
 
@@ -137,14 +135,14 @@ class ERPFlowTests(TestCase):
         response = self.vender(caja)
         venta_id = response.data["venta_id"]
         self.assertEqual(response.status_code, 200, response.data)
-        response = self.client.post(
-            f"/api/ventas/anular/{venta_id}/", {"caja_id": caja.id}, format="json"
-        )
+        response = self.client.post(f"/api/ventas/anular/{venta_id}/", {"caja_id": caja.id}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, Decimal("20.000"))
         self.assertEqual(Venta.objects.get(pk=venta_id).estado, "ANULADA")
-        self.assertTrue(MovimientoFinanciero.objects.filter(tipo="EGRESO", referencia__startswith="TICKET-").exists())
+        self.assertTrue(
+            MovimientoFinanciero.objects.filter(tipo="EGRESO", referencia__startswith="TICKET-").exists()
+        )
         response = self.client.post(
             "/api/ventas/caja/cerrar/",
             {"caja_id": caja.id, "monto_real": "100.00"},
@@ -263,13 +261,9 @@ class ERPFlowTests(TestCase):
         response = self.client.get("/api/dashboard/")
         self.assertEqual(response.status_code, 200, response.data)
         hoy = date.today().isoformat()
-        response = self.client.get(
-            "/api/reportes/dashboard-reporte/", {"desde": hoy, "hasta": hoy}
-        )
+        response = self.client.get("/api/reportes/dashboard-reporte/", {"desde": hoy, "hasta": hoy})
         self.assertEqual(response.status_code, 200, response.data)
-        response = self.client.get(
-            "/api/reportes/dashboard-reporte/", {"desde": hoy, "hasta": "2000-01-01"}
-        )
+        response = self.client.get("/api/reportes/dashboard-reporte/", {"desde": hoy, "hasta": "2000-01-01"})
         self.assertEqual(response.status_code, 400)
 
     def test_gestion_de_usuarios_roles_y_desactivacion(self):

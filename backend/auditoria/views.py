@@ -1,24 +1,17 @@
-from config.fechas import filtrar_rango
 from datetime import date
 
 from django.utils import timezone
-from rest_framework.decorators import (
-    api_view,
-    permission_classes
-)
-
-from rest_framework.permissions import (
-    IsAuthenticated
-)
-
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from config.fechas import filtrar_rango
 from usuarios.permissions import requiere_roles
 
 from .models import Auditoria
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def listar_auditoria(request):
     """Eventos de auditoría (solo ADMIN/GERENTE), con filtros opcionales."""
@@ -30,7 +23,8 @@ def listar_auditoria(request):
         desde = request.query_params.get("desde")
         hasta = request.query_params.get("hasta")
         registros = filtrar_rango(
-            registros, "fecha",
+            registros,
+            "fecha",
             date.fromisoformat(desde) if desde else None,
             date.fromisoformat(hasta) if hasta else None,
         )
@@ -49,16 +43,17 @@ def listar_auditoria(request):
     data = []
 
     for r in registros[:limite]:
-
-        data.append({
-            "id": r.id,
-            "fecha": timezone.localtime(r.fecha).strftime("%d/%m/%Y %H:%M:%S"),
-            "usuario": r.usuario.username if r.usuario else "Sistema",
-            "modulo": r.modulo,
-            "accion": r.accion,
-            "referencia": r.referencia,
-            "detalle": r.detalle,
-            "ip": r.ip,
-        })
+        data.append(
+            {
+                "id": r.id,
+                "fecha": timezone.localtime(r.fecha).strftime("%d/%m/%Y %H:%M:%S"),
+                "usuario": r.usuario.username if r.usuario else "Sistema",
+                "modulo": r.modulo,
+                "accion": r.accion,
+                "referencia": r.referencia,
+                "detalle": r.detalle,
+                "ip": r.ip,
+            }
+        )
 
     return Response(data)

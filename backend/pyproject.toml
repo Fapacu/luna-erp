@@ -1,0 +1,17 @@
+# Configuración de herramientas de desarrollo (no forma parte del despliegue).
+# Uso: pip install ruff  ->  ruff check .  &&  ruff format .
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["venv", "*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E501", "B904"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["auditoria", "compras", "config", "dashboard", "finanzas", "inventario", "reportes", "usuarios", "ventas", "tests"]
+
+[tool.ruff.format]
+quote-style = "double"

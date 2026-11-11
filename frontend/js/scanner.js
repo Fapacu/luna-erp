@@ -58,7 +58,6 @@ function activarCamara() {
 
         camaraActiva = false;
 
-        console.log('Cámara apagada');
 
         return;
     }
@@ -124,7 +123,6 @@ function activarCamara() {
             return;
         }
 
-        console.log('Cámara iniciada');
 
         Quagga.start();
     });
@@ -145,7 +143,6 @@ Quagga.onDetected(async function(result) {
 
     const codigo = result.codeResult.code;
 
-    console.log('Código detectado:', codigo);
 
     buscarProductoPorCodigo(codigo);
 

@@ -726,7 +726,6 @@ GUARDAR PROVEEDOR
 
 async function guardarProveedor(){
 
-    console.log("Guardar proveedor desde COMPRAS");
 
     const nombre =
     document.getElementById(
@@ -779,7 +778,6 @@ async function guardarProveedor(){
         const data =
         await res.json()
 
-        console.log(data)
 
 
         if(data.error){

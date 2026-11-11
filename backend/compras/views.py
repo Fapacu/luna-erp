@@ -1,21 +1,22 @@
+import logging
 from datetime import date
-from django.utils import timezone
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.db import transaction
-
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from usuarios.permissions import requiere_roles
 
 from finanzas.models import CuentaPorPagar
 from finanzas.services import registrar_egreso
-
 from inventario.models import Producto
 from inventario.services import registrar_movimiento
+from usuarios.permissions import requiere_roles
 
 from .models import Compra, DetalleCompra, Proveedor
+
+logger = logging.getLogger(__name__)
 
 
 def _ids_productos(valor):
@@ -59,62 +60,38 @@ def _decimal_no_negativo(valor):
 # PROVEEDORES ERP
 # =========================================
 
-@api_view(['GET', 'POST'])
+
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
-
 def listar_proveedores(request):
-
     # =====================================
     # LISTAR
     # =====================================
 
-    if request.method == 'GET':
-
-        proveedores = Proveedor.objects.all().order_by('nombre')
+    if request.method == "GET":
+        proveedores = Proveedor.objects.all().order_by("nombre")
 
         data = []
 
         for p in proveedores:
-
-            data.append({
-
-                "id": p.id,
-
-                "nombre": p.nombre,
-
-                "telefono": p.telefono,
-
-                "direccion": getattr(
-                    p,
-                    'direccion',
-                    ''
-                ),
-
-                "ruc": getattr(
-                    p,
-                    'ruc',
-                    ''
-                ),
-
-                "productos": [
-
-                    {
-                        "id": prod.id,
-                        "nombre": prod.nombre
-                    }
-
-                    for prod in p.productos.all()
-                ]
-            })
+            data.append(
+                {
+                    "id": p.id,
+                    "nombre": p.nombre,
+                    "telefono": p.telefono,
+                    "direccion": getattr(p, "direccion", ""),
+                    "ruc": getattr(p, "ruc", ""),
+                    "productos": [{"id": prod.id, "nombre": prod.nombre} for prod in p.productos.all()],
+                }
+            )
 
         return Response(data)
-
 
     # =====================================
     # CREAR
     # =====================================
 
-    if request.method == 'POST':
+    if request.method == "POST":
         requiere_roles(request.user, "ADMIN", "GERENTE")
 
         data = request.data
@@ -132,91 +109,53 @@ def listar_proveedores(request):
             return Response({"error": "La lista de productos no es válida."}, status=400)
 
         with transaction.atomic():
-            proveedor = Proveedor.objects.create(
-                nombre=nombre,
-                telefono=telefono
-            )
+            proveedor = Proveedor.objects.create(nombre=nombre, telefono=telefono)
             proveedor.productos.set(Producto.objects.filter(id__in=productos_ids))
 
-        return Response({
+        return Response({"success": True, "id": proveedor.id})
 
-            "success": True,
-
-            "id": proveedor.id
-        })
 
 # =========================================
 # OBTENER PROVEEDOR
 # =========================================
 
-@api_view(['GET'])
+
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
-
 def obtener_proveedor(request, id):
-
     try:
-
         p = Proveedor.objects.get(id=id)
 
     except Proveedor.DoesNotExist:
+        return Response({"error": "Proveedor no existe"}, status=404)
 
-        return Response({
-
-            "error": "Proveedor no existe"
-
-        }, status=404)
-
-    return Response({
-
-        "id": p.id,
-
-        "nombre": p.nombre,
-
-        "telefono": p.telefono,
-
-        "direccion": getattr(
-            p,
-            'direccion',
-            ''
-        ),
-
-        "ruc": getattr(
-            p,
-            'ruc',
-            ''
-        ),
-
-        "productos": [
-            {
-                "id": producto.id,
-                "nombre": producto.nombre
-            }
-            for producto in p.productos.all()
-        ]
-    })
+    return Response(
+        {
+            "id": p.id,
+            "nombre": p.nombre,
+            "telefono": p.telefono,
+            "direccion": getattr(p, "direccion", ""),
+            "ruc": getattr(p, "ruc", ""),
+            "productos": [{"id": producto.id, "nombre": producto.nombre} for producto in p.productos.all()],
+        }
+    )
 
 
 # =========================================
 # ACTUALIZAR PROVEEDOR
 # =========================================
 
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
 
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
 def actualizar_proveedor(request, id):
     requiere_roles(request.user, "ADMIN", "GERENTE")
 
     try:
-
         p = Proveedor.objects.get(id=id)
 
     except Proveedor.DoesNotExist:
-
-        return Response({
-
-            "error": "Proveedor no existe"
-
-        }, status=404)
+        return Response({"error": "Proveedor no existe"}, status=404)
 
     data = request.data
 
@@ -237,55 +176,46 @@ def actualizar_proveedor(request, id):
         if productos_ids is not None:
             p.productos.set(Producto.objects.filter(id__in=productos_ids))
 
-    return Response({
-
-        "success": True
-    })
+    return Response({"success": True})
 
 
 # =========================================
 # ELIMINAR PROVEEDOR
 # =========================================
 
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
 
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
 def eliminar_proveedor(request, id):
     requiere_roles(request.user, "ADMIN", "GERENTE")
 
     try:
-
         p = Proveedor.objects.get(id=id)
 
     except Proveedor.DoesNotExist:
-
-        return Response({
-
-            "error": "Proveedor no existe"
-
-        }, status=404)
+        return Response({"error": "Proveedor no existe"}, status=404)
 
     if Compra.objects.filter(proveedor=p).exists():
-        return Response({
-            "error": "No se puede eliminar un proveedor con compras registradas; conserve el historial contable."
-        }, status=409)
+        return Response(
+            {
+                "error": "No se puede eliminar un proveedor con compras registradas; conserve el historial contable."
+            },
+            status=409,
+        )
 
     p.delete()
 
-    return Response({
-
-        "success": True
-    })
+    return Response({"success": True})
 
 
 # =========================================
 # CREAR COMPRA ERP
 # =========================================
 
-@transaction.atomic
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
 
+@transaction.atomic
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def crear_compra(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
 
@@ -295,14 +225,10 @@ def crear_compra(request):
     items = data.get("items", [])
 
     if not proveedor_id:
-        return Response({
-            "error": "Seleccione un proveedor"
-        }, status=400)
+        return Response({"error": "Seleccione un proveedor"}, status=400)
 
     if not items or not isinstance(items, list):
-        return Response({
-            "error": "No hay productos"
-        }, status=400)
+        return Response({"error": "No hay productos"}, status=400)
 
     credito = data.get("credito", False)
     if not isinstance(credito, bool):
@@ -313,7 +239,9 @@ def crear_compra(request):
         try:
             fecha_vencimiento = date.fromisoformat(str(data.get("fecha_vencimiento") or "").strip())
         except ValueError:
-            return Response({"error": "Indique una fecha de vencimiento válida para una compra a crédito."}, status=400)
+            return Response(
+                {"error": "Indique una fecha de vencimiento válida para una compra a crédito."}, status=400
+            )
 
     try:
         numero_factura = _texto(data.get("numero_factura"), 100) or None
@@ -326,25 +254,18 @@ def crear_compra(request):
         descuento = _decimal_no_negativo(data.get("descuento"))
         impuesto = _decimal_no_negativo(data.get("impuesto"))
     except ValueError:
-        return Response({"error": "Descuento e impuesto deben ser importes válidos no negativos."}, status=400)
+        return Response(
+            {"error": "Descuento e impuesto deben ser importes válidos no negativos."}, status=400
+        )
 
-    if numero_factura and Compra.objects.filter(
-        numero_factura=numero_factura
-    ).exists():
-
-        return Response({
-            "error": "Factura duplicada"
-        }, status=400)
+    if numero_factura and Compra.objects.filter(numero_factura=numero_factura).exists():
+        return Response({"error": "Factura duplicada"}, status=400)
 
     try:
-
         proveedor = Proveedor.objects.get(id=proveedor_id)
 
     except Proveedor.DoesNotExist:
-
-        return Response({
-            "error": "Proveedor no existe"
-        }, status=404)
+        return Response({"error": "Proveedor no existe"}, status=404)
 
     # =====================================
     # VALIDAR TODOS LOS PRODUCTOS
@@ -354,67 +275,41 @@ def crear_compra(request):
     total = Decimal("0")
 
     for item in items:
-
         if not isinstance(item, dict):
             return Response({"error": "Detalle de compra inválido."}, status=400)
 
         try:
-
-            producto = Producto.objects.select_for_update().get(
-                id=int(item["producto"]), activo=True
-            )
+            producto = Producto.objects.select_for_update().get(id=int(item["producto"]), activo=True)
 
         except (KeyError, TypeError, ValueError):
             return Response({"error": "Detalle de compra inválido."}, status=400)
 
         except Producto.DoesNotExist:
-
-            return Response({
-                "error": "Producto no existe"
-            }, status=404)
+            return Response({"error": "Producto no existe"}, status=404)
 
         if not proveedor.productos.filter(id=producto.id).exists():
-
-            return Response({
-                "error":
-                f"{proveedor.nombre} no provee {producto.nombre}"
-            }, status=400)
+            return Response({"error": f"{proveedor.nombre} no provee {producto.nombre}"}, status=400)
 
         try:
-
             cantidad = Decimal(str(item["cantidad"]))
             costo = Decimal(str(item["costo"]))
 
         except (KeyError, InvalidOperation, TypeError, ValueError):
-
-            return Response({
-                "error": "Datos inválidos"
-            }, status=400)
+            return Response({"error": "Datos inválidos"}, status=400)
 
         if not cantidad.is_finite() or cantidad <= 0 or cantidad.as_tuple().exponent < -3:
-
-            return Response({
-                "error": "Cantidad inválida"
-            }, status=400)
+            return Response({"error": "Cantidad inválida"}, status=400)
 
         if not costo.is_finite() or costo <= 0 or costo.as_tuple().exponent < -2:
-
-            return Response({
-                "error": "El costo debe ser positivo y tener hasta dos decimales."
-            }, status=400)
+            return Response({"error": "El costo debe ser positivo y tener hasta dos decimales."}, status=400)
 
         subtotal = Decimal(cantidad) * costo
 
         total += subtotal
 
-        productos_validados.append({
-
-            "producto": producto,
-            "cantidad": cantidad,
-            "costo": costo,
-            "subtotal": subtotal
-
-        })
+        productos_validados.append(
+            {"producto": producto, "cantidad": cantidad, "costo": costo, "subtotal": subtotal}
+        )
 
     if descuento > total + impuesto:
         return Response({"error": "El descuento no puede superar el total de la compra."}, status=400)
@@ -424,25 +319,15 @@ def crear_compra(request):
     # =====================================
 
     try:
-
         compra = Compra.objects.create(
-
             proveedor=proveedor,
-
             usuario=request.user,
-
             numero_factura=numero_factura,
-
             metodo_pago=metodo_pago,
-
             estado="PENDIENTE" if credito else "PAGADA",
-
             credito=credito,
-
             fecha_vencimiento=fecha_vencimiento,
-
-            observacion=observacion
-
+            observacion=observacion,
         )
 
         # =================================
@@ -450,7 +335,6 @@ def crear_compra(request):
         # =================================
 
         for item in productos_validados:
-
             producto = item["producto"]
             producto.refresh_from_db(fields=["stock", "precio_compra", "costo_promedio"])
             stock_anterior = Decimal(str(producto.stock))
@@ -466,31 +350,19 @@ def crear_compra(request):
             producto.save(update_fields=["precio_compra", "costo_promedio"])
 
             DetalleCompra.objects.create(
-
                 compra=compra,
-
                 producto=producto,
-
                 cantidad=item["cantidad"],
-
                 precio_compra=item["costo"],
-
-                subtotal=item["subtotal"]
-
+                subtotal=item["subtotal"],
             )
 
             registrar_movimiento(
-
                 producto=producto,
-
                 tipo="COMPRA",
-
                 cantidad=item["cantidad"],
-
                 usuario=request.user,
-
-                motivo=f"Compra #{compra.id}" + (f" - Factura {numero_factura}" if numero_factura else "")
-
+                motivo=f"Compra #{compra.id}" + (f" - Factura {numero_factura}" if numero_factura else ""),
             )
 
         # =================================
@@ -505,11 +377,7 @@ def crear_compra(request):
 
         compra.descuento = descuento
 
-        compra.total = (
-            compra.subtotal
-            + compra.impuesto
-            - compra.descuento
-        )
+        compra.total = compra.subtotal + compra.impuesto - compra.descuento
 
         compra.save()
 
@@ -518,20 +386,12 @@ def crear_compra(request):
         # =================================
 
         if compra.credito:
-
             CuentaPorPagar.objects.create(
-
                 proveedor=proveedor,
-
                 compra=compra,
-
                 total=compra.total,
-
                 saldo=compra.total,
-
-                fecha_vencimiento=
-                compra.fecha_vencimiento
-
+                fecha_vencimiento=compra.fecha_vencimiento,
             )
 
         # =================================
@@ -540,122 +400,78 @@ def crear_compra(request):
 
         if not compra.credito:
             registrar_egreso(
-
-            categoria="COMPRA",
-
-            descripcion=f"Compra #{compra.id}",
-
-            monto=compra.total,
-
-            usuario=request.user,
-
-            metodo_pago=compra.metodo_pago,
-
-            referencia=compra.numero_factura
-
-        )
+                categoria="COMPRA",
+                descripcion=f"Compra #{compra.id}",
+                monto=compra.total,
+                usuario=request.user,
+                metodo_pago=compra.metodo_pago,
+                referencia=compra.numero_factura,
+            )
 
         from auditoria.services import registrar_auditoria
+
         registrar_auditoria(
-            usuario=request.user, modulo="COMPRAS", accion="CREAR_COMPRA",
+            usuario=request.user,
+            modulo="COMPRAS",
+            accion="CREAR_COMPRA",
             referencia=f"Compra #{compra.id}",
             detalle=f"Proveedor: {proveedor.nombre}; total: {compra.total}; crédito: {credito}",
         )
 
     except Exception:
-        import logging
-        logging.getLogger(__name__).exception("No se pudo registrar la compra")
+        logger.exception("No se pudo registrar la compra")
 
         transaction.set_rollback(True)
 
-        return Response({
+        return Response(
+            {"error": "No se pudo registrar la compra. Verifique los datos e intente nuevamente."}, status=500
+        )
 
-            "error": "No se pudo registrar la compra. Verifique los datos e intente nuevamente."
-
-        }, status=500)
-
-    return Response({
-
-        "success": True,
-
-        "mensaje": "Compra registrada correctamente"
-
-    })
+    return Response({"success": True, "mensaje": "Compra registrada correctamente"})
 
 
 # =========================================
 # HISTORIAL COMPRAS ERP
 # =========================================
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def listar_compras(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
 
-    compras = Compra.objects.select_related("proveedor").prefetch_related(
-        "detallecompra_set__producto"
-    ).order_by('-id')
+    compras = (
+        Compra.objects.select_related("proveedor")
+        .prefetch_related("detallecompra_set__producto")
+        .order_by("-id")
+    )
 
     data = []
 
     for c in compras:
-
-        data.append({
-
-            "id": c.id,
-
-            "proveedor": c.proveedor.nombre,
-
-            "fecha":
-            timezone.localtime(c.fecha).strftime(
-                "%Y-%m-%d %H:%M"
-            ),
-
-            "numero_factura":
-            c.numero_factura,
-
-            "metodo_pago":
-            c.metodo_pago,
-
-            "estado":
-            c.estado,
-
-            "credito":
-            c.credito,
-
-            "subtotal":
-            float(c.subtotal),
-
-            "impuesto":
-            float(c.impuesto),
-
-            "descuento":
-            float(c.descuento),
-
-            "total":
-            float(c.total),
-
-            "detalle": [
-
-                {
-
-                    "producto":
-                    d.producto.nombre,
-
-                    "cantidad":
-                    float(d.cantidad),
-
-                    "costo":
-                    float(d.precio_compra),
-
-                    "subtotal":
-                    float(d.subtotal)
-
-                }
-
-                for d in c.detallecompra_set.all()
-            ]
-        })
+        data.append(
+            {
+                "id": c.id,
+                "proveedor": c.proveedor.nombre,
+                "fecha": timezone.localtime(c.fecha).strftime("%Y-%m-%d %H:%M"),
+                "numero_factura": c.numero_factura,
+                "metodo_pago": c.metodo_pago,
+                "estado": c.estado,
+                "credito": c.credito,
+                "subtotal": float(c.subtotal),
+                "impuesto": float(c.impuesto),
+                "descuento": float(c.descuento),
+                "total": float(c.total),
+                "detalle": [
+                    {
+                        "producto": d.producto.nombre,
+                        "cantidad": float(d.cantidad),
+                        "costo": float(d.precio_compra),
+                        "subtotal": float(d.subtotal),
+                    }
+                    for d in c.detallecompra_set.all()
+                ],
+            }
+        )
 
     return Response(data)

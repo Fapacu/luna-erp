@@ -780,7 +780,6 @@ function mostrarCajaActual(){
 
     .then(data => {
 
-        console.log("Caja actual:", data);
 
         document.getElementById(
             "cajaInicial"

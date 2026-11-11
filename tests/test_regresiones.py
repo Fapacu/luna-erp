@@ -7,9 +7,8 @@ from rest_framework.test import APIClient
 
 from compras.models import Compra, Proveedor
 from finanzas.models import CuentaPorPagar, MovimientoFinanciero
-from ventas.models import CuentaPorCobrar, MovimientoCaja, Venta
-
 from tests import test_erp_flows as base
+from ventas.models import CuentaPorCobrar, MovimientoCaja, Venta
 
 
 class ERPRegresionesTests(TestCase):
@@ -24,12 +23,22 @@ class ERPRegresionesTests(TestCase):
 
     def test_retiro_y_gasto_no_superan_efectivo_disponible(self):
         caja = self.abrir_caja(monto="100.00")
-        response = self.client.post("/api/ventas/retiro/", {"caja_id": caja.id, "monto": "150", "descripcion": "Excesivo"}, format="json")
+        response = self.client.post(
+            "/api/ventas/retiro/",
+            {"caja_id": caja.id, "monto": "150", "descripcion": "Excesivo"},
+            format="json",
+        )
         self.assertEqual(response.status_code, 400, response.data)
-        response = self.client.post("/api/ventas/gasto/", {"caja_id": caja.id, "monto": "100.01", "descripcion": "Excesivo"}, format="json")
+        response = self.client.post(
+            "/api/ventas/gasto/",
+            {"caja_id": caja.id, "monto": "100.01", "descripcion": "Excesivo"},
+            format="json",
+        )
         self.assertEqual(response.status_code, 400, response.data)
         self.assertFalse(MovimientoCaja.objects.filter(caja=caja).exists())
-        response = self.client.post("/api/ventas/retiro/", {"caja_id": caja.id, "monto": "100", "descripcion": "Todo"}, format="json")
+        response = self.client.post(
+            "/api/ventas/retiro/", {"caja_id": caja.id, "monto": "100", "descripcion": "Todo"}, format="json"
+        )
         self.assertEqual(response.status_code, 200, response.data)
 
     def test_producto_por_unidad_rechaza_cantidad_fraccionaria(self):
@@ -47,7 +56,9 @@ class ERPRegresionesTests(TestCase):
         primera = self.vender(caja, cantidad="3", metodo="LIBRETA").data["venta_id"]
         segunda = self.vender(caja, cantidad="1", metodo="LIBRETA").data["venta_id"]
         cuenta = CuentaPorCobrar.objects.get()
-        self.client.post(f"/api/ventas/libreta/{cuenta.id}/cobrar/", {"caja_id": caja.id, "monto": "5"}, format="json")
+        self.client.post(
+            f"/api/ventas/libreta/{cuenta.id}/cobrar/", {"caja_id": caja.id, "monto": "5"}, format="json"
+        )
         response = self.client.post(f"/api/ventas/anular/{segunda}/", {"caja_id": caja.id}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         cuenta.refresh_from_db()
@@ -55,7 +66,9 @@ class ERPRegresionesTests(TestCase):
         self.assertEqual(cuenta.total, Decimal("30.00"))
         self.assertTrue(cuenta.movimientos.filter(tipo="ANULACION").exists())
         # Sin saldo suficiente no se anula: se devolvería dinero ya cobrado.
-        self.client.post(f"/api/ventas/libreta/{cuenta.id}/cobrar/", {"caja_id": caja.id, "monto": "10"}, format="json")
+        self.client.post(
+            f"/api/ventas/libreta/{cuenta.id}/cobrar/", {"caja_id": caja.id, "monto": "10"}, format="json"
+        )
         response = self.client.post(f"/api/ventas/anular/{primera}/", {"caja_id": caja.id}, format="json")
         self.assertEqual(response.status_code, 400, response.data)
 
@@ -71,11 +84,24 @@ class ERPRegresionesTests(TestCase):
         casos = [
             ("/api/compras/proveedores/", {"nombre": "X", "productos": "abc"}),
             ("/api/compras/", {"proveedor": proveedor.id, "items": "abc"}),
-            ("/api/compras/", {"proveedor": proveedor.id, "items": [{"producto": "abc", "cantidad": 1, "costo": 1}]}),
-            ("/api/compras/", {"proveedor": proveedor.id, "credito": True, "fecha_vencimiento": "mañana",
-                               "items": [{"producto": self.product.id, "cantidad": 1, "costo": 1}]}),
+            (
+                "/api/compras/",
+                {"proveedor": proveedor.id, "items": [{"producto": "abc", "cantidad": 1, "costo": 1}]},
+            ),
+            (
+                "/api/compras/",
+                {
+                    "proveedor": proveedor.id,
+                    "credito": True,
+                    "fecha_vencimiento": "mañana",
+                    "items": [{"producto": self.product.id, "cantidad": 1, "costo": 1}],
+                },
+            ),
             ("/api/ventas/clientes/", {}),
-            ("/api/usuarios/crear/", {"username": "nuevo", "password": "123", "role_id": self.cashier_role.id, "email": None}),
+            (
+                "/api/usuarios/crear/",
+                {"username": "nuevo", "password": "123", "role_id": self.cashier_role.id, "email": None},
+            ),
         ]
         for url, data in casos:
             with self.subTest(url=url, data=data):
@@ -85,23 +111,41 @@ class ERPRegresionesTests(TestCase):
     def test_compra_contado_desde_la_ui_sin_iva_oculto(self):
         proveedor = Proveedor.objects.create(nombre="Prov UI")
         proveedor.productos.add(self.product)
-        response = self.client.post("/api/compras/", {
-            "proveedor": proveedor.id, "metodo_pago": "EFECTIVO", "credito": False,
-            "fecha_vencimiento": "", "observacion": "", "descuento": "1", "impuesto": "0",
-            "items": [{"producto": self.product.id, "nombre": "x", "cantidad": 2, "costo": 4}],
-        }, format="json")
+        response = self.client.post(
+            "/api/compras/",
+            {
+                "proveedor": proveedor.id,
+                "metodo_pago": "EFECTIVO",
+                "credito": False,
+                "fecha_vencimiento": "",
+                "observacion": "",
+                "descuento": "1",
+                "impuesto": "0",
+                "items": [{"producto": self.product.id, "nombre": "x", "cantidad": 2, "costo": 4}],
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 200, response.data)
         compra = Compra.objects.get()
-        self.assertEqual((compra.subtotal, compra.impuesto, compra.total), (Decimal("8.00"), Decimal("0.00"), Decimal("7.00")))
+        self.assertEqual(
+            (compra.subtotal, compra.impuesto, compra.total),
+            (Decimal("8.00"), Decimal("0.00"), Decimal("7.00")),
+        )
         self.assertEqual(MovimientoFinanciero.objects.get(categoria="COMPRA").monto, Decimal("7.00"))
 
     def test_pago_a_proveedor_salda_compra_a_credito(self):
         proveedor = Proveedor.objects.create(nombre="Prov crédito")
         proveedor.productos.add(self.product)
-        self.client.post("/api/compras/", {
-            "proveedor": proveedor.id, "credito": True, "fecha_vencimiento": "2030-01-31",
-            "items": [{"producto": self.product.id, "cantidad": 10, "costo": 4}],
-        }, format="json")
+        self.client.post(
+            "/api/compras/",
+            {
+                "proveedor": proveedor.id,
+                "credito": True,
+                "fecha_vencimiento": "2030-01-31",
+                "items": [{"producto": self.product.id, "cantidad": 10, "costo": 4}],
+            },
+            format="json",
+        )
         cuenta = CuentaPorPagar.objects.get()
         url = f"/api/finanzas/cuentas-por-pagar/{cuenta.id}/pagar/"
         self.assertEqual(self.client.post(url, {"monto": "41"}, format="json").status_code, 400)
@@ -140,9 +184,14 @@ class ERPRegresionesTests(TestCase):
     def test_caja_sin_id_no_usa_la_caja_de_otro_usuario(self):
         self.abrir_caja(user=self.admin)
         self.client.force_authenticate(self.cashier)
-        response = self.client.post("/api/ventas/", {
-            "metodo_pago": "EFECTIVO", "productos": [{"id": self.product.id, "cantidad": 1}],
-        }, format="json")
+        response = self.client.post(
+            "/api/ventas/",
+            {
+                "metodo_pago": "EFECTIVO",
+                "productos": [{"id": self.product.id, "cantidad": 1}],
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 400, response.data)
 
     def test_cobro_libreta_con_caja_observacion_y_comprobante(self):
@@ -150,11 +199,43 @@ class ERPRegresionesTests(TestCase):
         self.vender(caja, cantidad="3", metodo="LIBRETA")
         cuenta = CuentaPorCobrar.objects.get()
         url = f"/api/ventas/libreta/{cuenta.id}/cobrar/"
-        self.assertEqual(self.client.post(url, {"caja_id": caja.id, "monto": "5", "observacion": "x" * 201}, format="json").status_code, 400)
-        response = self.client.post(url, {"caja_id": caja.id, "monto": "30", "observacion": "Pago quincena"}, format="json")
+        self.assertEqual(
+            self.client.post(
+                url, {"caja_id": caja.id, "monto": "5", "observacion": "x" * 201}, format="json"
+            ).status_code,
+            400,
+        )
+        response = self.client.post(
+            url, {"caja_id": caja.id, "monto": "30", "observacion": "Pago quincena"}, format="json"
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["pago"]["caja_id"], caja.id)
         self.assertEqual(response.data["pago"]["observacion"], "Pago quincena")
         self.assertTrue(response.data["cuenta"]["cancelada"])
         self.assertEqual(cuenta.pagos.get().observacion, "Pago quincena")
-        self.assertTrue(MovimientoCaja.objects.filter(caja=caja, tipo="INGRESO", monto=Decimal("30")).exists())
+        self.assertTrue(
+            MovimientoCaja.objects.filter(caja=caja, tipo="INGRESO", monto=Decimal("30")).exists()
+        )
+
+    def test_instalacion_nueva_tiene_roles_y_comando_crear_admin(self):
+        from io import StringIO
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+        from django.core.management import call_command
+
+        from usuarios.models import Role
+
+        self.assertTrue(Role.objects.filter(nombre="GERENTE").exists())
+        salida = StringIO()
+        with mock.patch(
+            "usuarios.management.commands.crear_admin.getpass",
+            side_effect=["Clave-Segura-2026", "Clave-Segura-2026"],
+        ):
+            call_command("crear_admin", "--username", "dueño", stdout=salida)
+        usuario = User.objects.get(username="dueño")
+        self.assertEqual(usuario.usuarioperfil.role.nombre, "ADMIN")
+        respuesta = APIClient().post(
+            "/api/login/", {"username": "dueño", "password": "Clave-Segura-2026"}, format="json"
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.data)

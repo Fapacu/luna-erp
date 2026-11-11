@@ -1,11 +1,11 @@
 # reportes/pdf.py
-from reportlab.platypus import SimpleDocTemplate, Table
 from django.http import HttpResponse
+from reportlab.platypus import SimpleDocTemplate, Table
+
 
 def generar_pdf(productos):
-
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="reporte.pdf"'
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="reporte.pdf"'
 
     doc = SimpleDocTemplate(response)
 

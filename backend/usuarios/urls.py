@@ -1,12 +1,13 @@
 from django.urls import path
-from .views import *
+
+from . import views
 
 urlpatterns = [
-    path('', listar_usuarios),
-    path('roles/', listar_roles),
-    path('crear/', crear_usuario),
-    path('editar/<int:user_id>/', editar_usuario),
-    path('password/<int:user_id>/', cambiar_password),
-    path('eliminar/<int:user_id>/', eliminar_usuario),
-    path('me/', usuario_actual),
+    path("", views.listar_usuarios),
+    path("roles/", views.listar_roles),
+    path("crear/", views.crear_usuario),
+    path("editar/<int:user_id>/", views.editar_usuario),
+    path("password/<int:user_id>/", views.cambiar_password),
+    path("eliminar/<int:user_id>/", views.eliminar_usuario),
+    path("me/", views.usuario_actual),
 ]

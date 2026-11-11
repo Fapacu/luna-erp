@@ -1,5 +1,5 @@
-from rest_framework.exceptions import PermissionDenied
 from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.exceptions import PermissionDenied
 
 
 def obtener_rol(user):
@@ -15,7 +15,6 @@ def obtener_rol(user):
 
 
 def requiere_roles(user, *roles):
-
     rol = obtener_rol(user)
 
     if rol not in roles:
