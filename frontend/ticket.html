@@ -2,13 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ venta.numero_ticket }}</title>
 <style>
     @page { margin: 4mm; }
-    body { font-family: "Courier New", monospace; font-size: 12px; width: 72mm; margin: 0 auto; color: #000; }
+    html { background: #fff; }
+    body { background: #fff; font-family: "Courier New", monospace; font-size: 12px; width: 72mm; margin: 0 auto; color: #000; }
     .center { text-align: center; }
-    h1 { font-size: 15px; margin: 0 0 2px; }
+    .logo-luna { width: 62mm; height: auto; display: block; margin: 0 auto 4px; }
     p { margin: 2px 0; }
     hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
     table { width: 100%; border-collapse: collapse; }
@@ -21,7 +23,8 @@
 <body onload="window.print()">
 
 <div class="center">
-    <h1>{{ negocio.nombre }}</h1>
+    {% include "img/logo_luna.svg" %}
+    {% if negocio.razon_social %}<p>{{ negocio.razon_social }}</p>{% endif %}
     {% if negocio.ruc %}<p>RUC: {{ negocio.ruc }}</p>{% endif %}
     {% if negocio.direccion %}<p>{{ negocio.direccion }}</p>{% endif %}
     {% if negocio.telefono %}<p>Tel.: {{ negocio.telefono }}</p>{% endif %}

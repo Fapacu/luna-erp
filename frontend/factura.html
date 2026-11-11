@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factura {{ f.numero }}</title>
+<style>
+    * { box-sizing: border-box; }
+    html { background: #fff; }
+    body { margin: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+    p { margin: 1px 0; }
+    table { border-collapse: collapse; width: 100%; }
+    .r { text-align: right; white-space: nowrap; }
+    .c { text-align: center; }
+    .b { font-weight: bold; }
+    .anulada { border: 3px solid #000; font-size: 20px; font-weight: bold; text-align: center; padding: 4px; margin: 6px 0; letter-spacing: 4px; }
+    .copia { page-break-after: always; break-after: page; }
+    .copia:last-child { page-break-after: auto; break-after: auto; }
+    .etiqueta-copia { font-size: 11px; font-weight: bold; text-align: right; margin-top: 6px; }
+
+    /* ---------- A4 ---------- */
+    .A4 { font-size: 11px; }
+    .A4 .copia { width: 190mm; margin: 0 auto; padding: 6mm 0; }
+    .A4 .cabecera { display: grid; grid-template-columns: 1.6fr 1fr; border: 1.5px solid #000; }
+    .A4 .emisor { padding: 8px 10px; border-right: 1.5px solid #000; }
+    .A4 .emisor .logo-luna { width: 70mm; height: auto; display: block; margin-bottom: 4px; }
+    .A4 .timbrado { padding: 8px 10px; text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+    .A4 .timbrado .titulo { font-size: 18px; font-weight: bold; letter-spacing: 2px; margin: 4px 0; }
+    .A4 .timbrado .numero { font-size: 15px; font-weight: bold; }
+    .A4 .receptor { border: 1.5px solid #000; border-top: 0; padding: 6px 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; }
+    .A4 .detalle th, .A4 .detalle td { border: 1px solid #000; padding: 3px 5px; }
+    .A4 .detalle { margin-top: -1.5px; border: 1.5px solid #000; }
+    .A4 .detalle th { background: #eee; font-size: 10px; }
+    .A4 .detalle tbody tr.relleno td { height: 14px; }
+    .A4 .totales td { border: 1px solid #000; padding: 3px 5px; }
+    .A4 .totales { border: 1.5px solid #000; border-top: 0; }
+
+    /* ---------- TICKET 80 mm ---------- */
+    .TICKET { font-family: "Courier New", monospace; font-size: 11.5px; }
+    .TICKET .copia { width: 72mm; margin: 0 auto; padding: 2mm 0 6mm; }
+    .TICKET .emisor, .TICKET .timbrado { text-align: center; }
+    .TICKET .emisor .logo-luna { width: 62mm; height: auto; display: block; margin: 0 auto 4px; }
+    .TICKET .timbrado .titulo { font-size: 15px; font-weight: bold; margin: 4px 0 2px; }
+    .TICKET .timbrado .numero { font-size: 14px; font-weight: bold; }
+    .TICKET .bloque { border-top: 1px dashed #000; margin-top: 5px; padding-top: 5px; }
+    .TICKET .detalle th { font-size: 10.5px; border-bottom: 1px dashed #000; text-align: left; }
+    .TICKET .detalle td { padding: 1px 0; vertical-align: top; }
+    .TICKET .solo-a4 { display: none; }
+    .A4 .solo-ticket { display: none; }
+
+    @media print { @page { margin: 6mm; } }
+</style>
+</head>
+<body class="{{ formato }}" onload="window.print()">
+
+{% for copia in copias %}
+<section class="copia">
+
+    <div class="cabecera">
+        <div class="emisor">
+            {% include "img/logo_luna.svg" %}
+            <p class="b">{{ f.emisor_razon_social }}</p>
+            {% if f.emisor_nombre_fantasia and f.emisor_nombre_fantasia != f.emisor_razon_social %}<p>{{ f.emisor_nombre_fantasia }}</p>{% endif %}
+            {% if f.emisor_actividad %}<p>{{ f.emisor_actividad }}</p>{% endif %}
+            <p>{{ f.emisor_direccion }}{% if f.emisor_ciudad %} - {{ f.emisor_ciudad }}{% endif %}</p>
+            {% if f.emisor_telefono %}<p>Tel.: {{ f.emisor_telefono }}</p>{% endif %}
+            {% if f.emisor_email %}<p>{{ f.emisor_email }}</p>{% endif %}
+        </div>
+        <div class="timbrado {% if formato == 'TICKET' %}bloque{% endif %}">
+            <p class="b">TIMBRADO N.º {{ f.timbrado }}</p>
+            <p>Vigencia: {{ timbrado_inicio }} al {{ timbrado_fin }}</p>
+            <p class="b">RUC: {{ f.emisor_ruc }}</p>
+            <p class="titulo">FACTURA</p>
+            <p class="numero">N.º {{ f.numero }}</p>
+        </div>
+    </div>
+
+    {% if f.estado == "ANULADA" %}<div class="anulada">ANULADA</div>{% endif %}
+
+    <div class="receptor {% if formato == 'TICKET' %}bloque{% endif %}">
+        <p><span class="b">Fecha de emisión:</span> {{ fecha }}</p>
+        <p><span class="b">Condición de venta:</span> {{ f.get_condicion_display }}</p>
+        <p><span class="b">Nombre o razón social:</span> {{ f.cliente_razon_social }}</p>
+        <p><span class="b">{% if f.cliente_tipo_documento == "CI" %}C.I. N.º{% else %}RUC{% endif %}:</span> {{ f.cliente_documento }}</p>
+        {% if f.cliente_direccion %}<p><span class="b">Dirección:</span> {{ f.cliente_direccion }}</p>{% endif %}
+        {% if f.cliente_telefono %}<p><span class="b">Teléfono:</span> {{ f.cliente_telefono }}</p>{% endif %}
+        {% if f.cliente_email %}<p><span class="b">Correo:</span> {{ f.cliente_email }}</p>{% endif %}
+        <p><span class="b">Forma de pago:</span> {{ metodo }}</p>
+    </div>
+
+    {% if formato == "A4" %}
+    <table class="detalle">
+        <thead>
+            <tr>
+                <th rowspan="2" style="width:9%">Cant.</th>
+                <th rowspan="2">Descripción</th>
+                <th rowspan="2" style="width:13%">Precio unitario</th>
+                <th colspan="3">Valor de venta</th>
+            </tr>
+            <tr>
+                <th style="width:11%">Exentas</th>
+                <th style="width:11%">5 %</th>
+                <th style="width:11%">10 %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lineas %}
+            <tr>
+                <td class="c">{{ l.cantidad }}</td>
+                <td>{{ l.descripcion }}</td>
+                <td class="r">{{ l.precio }}</td>
+                <td class="r">{{ l.exenta }}</td>
+                <td class="r">{{ l.iva5 }}</td>
+                <td class="r">{{ l.iva10 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <table class="totales">
+        <tr>
+            <td class="b" colspan="3">SUBTOTALES</td>
+            <td class="r" style="width:11%">{{ total_exenta }}</td>
+            <td class="r" style="width:11%">{{ total_5 }}</td>
+            <td class="r" style="width:11%">{{ total_10 }}</td>
+        </tr>
+        <tr>
+            <td class="b" colspan="5">TOTAL A PAGAR: GUARANÍES {{ total_letras }}</td>
+            <td class="r b">{{ total }}</td>
+        </tr>
+        <tr>
+            <td colspan="6"><span class="b">LIQUIDACIÓN DEL IVA:</span>
+                &nbsp; (5 %) Gs. {{ iva_5 }} &nbsp;&nbsp; (10 %) Gs. {{ iva_10 }} &nbsp;&nbsp; <span class="b">TOTAL IVA: Gs. {{ iva_total }}</span></td>
+        </tr>
+    </table>
+    {% else %}
+    <div class="bloque">
+        <table class="detalle">
+            <thead><tr><th>Cant. / Descripción</th><th class="r">IVA</th><th class="r">Importe</th></tr></thead>
+            <tbody>
+            {% for l in lineas %}
+                <tr><td colspan="3">{{ l.descripcion }}</td></tr>
+                <tr><td>{{ l.cantidad }} x {{ l.precio }}</td><td class="r">{% if l.tasa %}{{ l.tasa }}%{% else %}Ex.{% endif %}</td><td class="r">{{ l.subtotal }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="bloque">
+        <table>
+            <tr><td>Subtotal exentas</td><td class="r">{{ total_exenta }}</td></tr>
+            <tr><td>Subtotal gravado 5 %</td><td class="r">{{ total_5 }}</td></tr>
+            <tr><td>Subtotal gravado 10 %</td><td class="r">{{ total_10 }}</td></tr>
+            <tr class="b"><td>TOTAL A PAGAR Gs.</td><td class="r">{{ total }}</td></tr>
+        </table>
+        <p>Son guaraníes: {{ total_letras }}</p>
+    </div>
+    <div class="bloque">
+        <p class="b">Liquidación del IVA</p>
+        <table>
+            <tr><td>IVA 5 %</td><td class="r">{{ iva_5 }}</td></tr>
+            <tr><td>IVA 10 %</td><td class="r">{{ iva_10 }}</td></tr>
+            <tr class="b"><td>Total IVA</td><td class="r">{{ iva_total }}</td></tr>
+        </table>
+    </div>
+    <div class="bloque c"><p>¡Gracias por su compra!</p></div>
+    {% endif %}
+
+    <p class="etiqueta-copia">{{ copia }}</p>
+</section>
+{% endfor %}
+
+</body>
+</html>

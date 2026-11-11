@@ -173,6 +173,111 @@ class DetalleVenta(models.Model):
         default=0
     )
 
+    # Tasa de IVA vigente para el producto al momento de la venta.
+    tasa_iva = models.PositiveSmallIntegerField(default=10)
+
+
+class ConfiguracionFacturacion(models.Model):
+    """Datos fiscales del emisor y timbrado vigente (registro único)."""
+
+    FORMATOS = (
+        ("TICKET", "Ticket (impresora térmica 80 mm)"),
+        ("A4", "Hoja A4"),
+    )
+
+    razon_social = models.CharField(max_length=200, blank=True, default="")
+    nombre_fantasia = models.CharField(max_length=200, blank=True, default="Luna Minimarket")
+    ruc = models.CharField(max_length=20, blank=True, default="")
+    actividad_economica = models.CharField(max_length=200, blank=True, default="")
+    direccion = models.CharField(max_length=250, blank=True, default="")
+    ciudad = models.CharField(max_length=100, blank=True, default="")
+    telefono = models.CharField(max_length=50, blank=True, default="")
+    email = models.CharField(max_length=150, blank=True, default="")
+
+    timbrado = models.CharField(max_length=8, blank=True, default="")
+    timbrado_inicio = models.DateField(null=True, blank=True)
+    timbrado_fin = models.DateField(null=True, blank=True)
+    establecimiento = models.PositiveSmallIntegerField(default=1)
+    punto_expedicion = models.PositiveSmallIntegerField(default=1)
+    numero_siguiente = models.PositiveIntegerField(default=1)
+    numero_final = models.PositiveIntegerField(null=True, blank=True)
+
+    formato_factura = models.CharField(max_length=10, choices=FORMATOS, default="TICKET")
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración de facturación"
+
+    def __str__(self):
+        return self.razon_social or "Configuración de facturación"
+
+    @classmethod
+    def obtener(cls, bloquear=False):
+        consulta = cls.objects.select_for_update() if bloquear else cls.objects
+        configuracion = consulta.order_by("id").first()
+        if configuracion is None:
+            configuracion = cls.objects.create()
+        return configuracion
+
+
+class Factura(models.Model):
+    """Factura emitida para una venta, con los datos fiscales congelados."""
+
+    TIPOS_DOCUMENTO = (
+        ("RUC", "RUC"),
+        ("CI", "Cédula de identidad"),
+        ("SIN_NOMBRE", "Sin nombre (consumidor final)"),
+    )
+    CONDICIONES = (
+        ("CONTADO", "Contado"),
+        ("CREDITO", "Crédito"),
+    )
+    ESTADOS = (
+        ("EMITIDA", "Emitida"),
+        ("ANULADA", "Anulada"),
+    )
+
+    venta = models.OneToOneField(Venta, on_delete=models.PROTECT, related_name="factura")
+    numero = models.CharField(max_length=15, unique=True)
+    fecha_emision = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(User, on_delete=models.PROTECT)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default="EMITIDA")
+    condicion = models.CharField(max_length=10, choices=CONDICIONES, default="CONTADO")
+
+    timbrado = models.CharField(max_length=8)
+    timbrado_inicio = models.DateField()
+    timbrado_fin = models.DateField()
+
+    emisor_razon_social = models.CharField(max_length=200)
+    emisor_nombre_fantasia = models.CharField(max_length=200, blank=True, default="")
+    emisor_ruc = models.CharField(max_length=20)
+    emisor_actividad = models.CharField(max_length=200, blank=True, default="")
+    emisor_direccion = models.CharField(max_length=250, blank=True, default="")
+    emisor_ciudad = models.CharField(max_length=100, blank=True, default="")
+    emisor_telefono = models.CharField(max_length=50, blank=True, default="")
+    emisor_email = models.CharField(max_length=150, blank=True, default="")
+
+    cliente_tipo_documento = models.CharField(max_length=12, choices=TIPOS_DOCUMENTO)
+    cliente_documento = models.CharField(max_length=20)
+    cliente_razon_social = models.CharField(max_length=200)
+    cliente_direccion = models.CharField(max_length=250, blank=True, default="")
+    cliente_telefono = models.CharField(max_length=50, blank=True, default="")
+    cliente_email = models.CharField(max_length=150, blank=True, default="")
+
+    total_exenta = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_gravada_5 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_gravada_10 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    iva_5 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    iva_10 = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["-id"]
+
+    def __str__(self):
+        return f"Factura {self.numero}"
+
+
 class CuentaPorCobrar(models.Model):
 
     cliente_nombre = models.CharField(

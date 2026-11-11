@@ -293,6 +293,52 @@ PANEL DERECHO
     </div>
 
 
+    <!-- COMPROBANTE: TICKET O FACTURA -->
+
+    <div class="card-pos comprobante-pos">
+
+        <label for="tipoComprobante">Comprobante</label>
+
+        <select id="tipoComprobante">
+            <option value="TICKET">🧾 Ticket</option>
+            <option value="FACTURA">📄 Factura</option>
+        </select>
+
+        <div id="bloqueFactura" style="display:none;">
+
+            <label for="facturaTipoDoc">Tipo de documento</label>
+            <select id="facturaTipoDoc">
+                <option value="RUC">RUC</option>
+                <option value="CI">Cédula de identidad</option>
+                <option value="SIN_NOMBRE">Sin nombre (consumidor final)</option>
+            </select>
+
+            <div id="grupoDocumentoFactura">
+                <label for="facturaDocumento">RUC o C.I.</label>
+                <input type="text" id="facturaDocumento" inputmode="numeric" autocomplete="off" placeholder="Ej.: 80012345-6">
+                <small id="facturaDocAyuda" class="factura-ayuda" aria-live="polite"></small>
+                <div id="sugerenciasFactura"></div>
+            </div>
+
+            <div id="grupoRazonSocialFactura">
+                <label for="facturaRazonSocial">Nombre o razón social</label>
+                <input type="text" id="facturaRazonSocial" autocomplete="off" maxlength="200">
+            </div>
+
+            <label for="facturaDireccion">Dirección <small>(opcional)</small></label>
+            <input type="text" id="facturaDireccion" maxlength="250">
+
+            <label for="facturaTelefono">Teléfono <small>(opcional)</small></label>
+            <input type="tel" id="facturaTelefono" maxlength="50">
+
+            <label for="facturaEmail">Correo <small>(opcional)</small></label>
+            <input type="email" id="facturaEmail" maxlength="150">
+
+        </div>
+
+    </div>
+
+
     <!-- MONTO RECIBIDO -->
 
     <div class="card-pos">
@@ -538,7 +584,8 @@ SCRIPTS
 
 <script src="../js/permisos.js"></script>
 <script src="../js/sidebar.js"></script>
-<script src="../js/caja.js?v=12"></script>
+<script src="../js/pos-factura.js?v=1"></script>
+<script src="../js/caja.js?v=13"></script>
 
 <script src="https://unpkg.com/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 

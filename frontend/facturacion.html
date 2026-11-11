@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facturación | Luna ERP</title>
+    <link rel="stylesheet" href="./css/variables.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/sidebar.css">
+    <link rel="stylesheet" href="./css/pages/libreta.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+        .config-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: #374151; }
+        .config-grid input, .config-grid select {
+            padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 400;
+        }
+        .config-grid small { font-weight: 400; color: #6b7280; }
+        .seccion { margin-bottom: 18px; }
+        .seccion h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+        .estado-factura { padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; font-size: 14px; }
+        .estado-factura.ok { background: #dcfce7; color: #166534; }
+        .estado-factura.pendiente { background: #fef3c7; color: #92400e; }
+        .acciones-config { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .acciones-config button { padding: 11px 18px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .btn-guardar-config { background: #f97316; color: #fff; }
+        .aviso-legal { font-size: 13px; color: #4b5563; line-height: 1.5; }
+        .logo-preview { max-width: 340px; width: 100%; display: block; margin-bottom: 8px; }
+    </style>
+    <script src="js/api-config.js"></script>
+</head>
+<body>
+
+<div id="sidebar-container"></div>
+
+<main class="main">
+<section class="page">
+
+    <div class="page-header">
+        <div>
+            <h1><i class="bi bi-file-earmark-text"></i> Facturación</h1>
+            <p>Datos del emisor, timbrado y numeración para imprimir facturas.</p>
+        </div>
+    </div>
+
+    <div id="estadoFactura" class="estado-factura pendiente" role="status">Cargando configuración…</div>
+
+    <form id="formFacturacion" class="card" novalidate>
+
+        <div class="seccion">
+            <h2><i class="bi bi-shop"></i> Emisor</h2>
+            <img src="img/logo_luna.svg" alt="Logo de Luna Minimarket" class="logo-preview">
+            <div class="config-grid">
+                <label>Razón social *<input id="razon_social" maxlength="200" required></label>
+                <label>Nombre de fantasía<input id="nombre_fantasia" maxlength="200"></label>
+                <label>RUC *<input id="ruc" maxlength="12" placeholder="80012345-6" inputmode="numeric">
+                    <small id="rucAyuda"></small></label>
+                <label>Actividad económica<input id="actividad_economica" maxlength="200" placeholder="Comercio al por menor…"></label>
+                <label>Dirección *<input id="direccion" maxlength="250"></label>
+                <label>Ciudad<input id="ciudad" maxlength="100"></label>
+                <label>Teléfono<input id="telefono" maxlength="50"></label>
+                <label>Correo<input id="email" type="email" maxlength="150"></label>
+            </div>
+        </div>
+
+        <div class="seccion">
+            <h2><i class="bi bi-patch-check"></i> Timbrado y numeración</h2>
+            <div class="config-grid">
+                <label>N.º de timbrado *<input id="timbrado" maxlength="8" inputmode="numeric" placeholder="8 dígitos"></label>
+                <label>Inicio de vigencia *<input id="timbrado_inicio" type="date"></label>
+                <label>Fin de vigencia *<input id="timbrado_fin" type="date"></label>
+                <label>Establecimiento<input id="establecimiento" type="number" min="1" max="999"></label>
+                <label>Punto de expedición<input id="punto_expedicion" type="number" min="1" max="999"></label>
+                <label>Próximo número<input id="numero_siguiente" type="number" min="1" max="9999999">
+                    <small id="proximoNumero"></small></label>
+                <label>Número final autorizado<input id="numero_final" type="number" min="1" max="9999999">
+                    <small>Opcional: último número del rango autorizado.</small></label>
+                <label>Formato de impresión
+                    <select id="formato_factura">
+                        <option value="TICKET">Ticket (impresora térmica 80 mm)</option>
+                        <option value="A4">Hoja A4</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <p class="aviso-legal">
+            La factura impresa incluye los datos exigidos para facturas en Paraguay (timbrado y vigencia, RUC,
+            numeración, datos del comprador, condición de venta, valores por tasa, liquidación del IVA y total en letras),
+            con original y duplicado. Su validez legal depende de que el timbrado esté autorizado por la SET para
+            esta modalidad de impresión (autoimpresor). Este sistema no emite facturas electrónicas (SIFEN).
+        </p>
+
+        <div class="acciones-config">
+            <button type="submit" class="btn-guardar-config"><i class="bi bi-save"></i> Guardar</button>
+        </div>
+    </form>
+
+</section>
+</main>
+
+<script>
+    const BASE_PATH = "";
+</script>
+<script src="js/sidebar.js"></script>
+<script>
+    cargarSidebar();
+</script>
+<script src="js/facturacion.js"></script>
+<script src="js/enter-navigation.js"></script>
+</body>
+</html>

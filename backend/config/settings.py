@@ -12,7 +12,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "")
 if len(SECRET_KEY) < 32:
     raise ImproperlyConfigured("Configura SECRET_KEY con al menos 32 caracteres en el entorno.")
 
-DEBUG = os.getenv("DEBUG", "false").strip().lower() in {"1", "true", "yes"}
+DEBUG = os.getenv("DEBUG", "true").strip().lower() in {"1", "true", "yes"}
 _allowed_hosts = [
     host.strip()
     for host in os.getenv(

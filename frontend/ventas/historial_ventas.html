@@ -35,6 +35,18 @@
         }
         .acciones-venta .btn-anular { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
         .acciones-venta .btn-ticket { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+        .acciones-venta .btn-factura { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; }
+        .acciones-venta .btn-facturar { color: #ea580c; border-color: #fed7aa; background: #fff7ed; }
+        .modal-factura { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+        .modal-factura.abierto { display: flex; }
+        .modal-factura form { background: #fff; border-radius: 12px; padding: 20px; width: 100%; max-width: 440px; max-height: 90vh; overflow: auto; }
+        .modal-factura h2 { margin: 0 0 12px; font-size: 18px; }
+        .modal-factura label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+        .modal-factura input, .modal-factura select { padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 400; }
+        .modal-factura .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+        .modal-factura .botones button { padding: 10px 16px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-weight: 600; }
+        .modal-factura .botones .primario { background: #f97316; border-color: #f97316; color: #fff; }
+        .modal-factura small { font-weight: 400; color: #6b7280; }
         .vacio { text-align: center; color: #6b7280; padding: 24px; }
     </style>
 
@@ -98,12 +110,13 @@
                         <th>Caja</th>
                         <th>Pago</th>
                         <th>Total</th>
+                        <th>Factura</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tablaVentas">
-                    <tr><td colspan="8" class="vacio">Cargando…</td></tr>
+                    <tr><td colspan="9" class="vacio">Cargando…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -112,6 +125,34 @@
 </section>
 
 </main>
+
+<div class="modal-factura" id="modalFactura" role="dialog" aria-modal="true" aria-labelledby="tituloModalFactura">
+    <form id="formFacturaVenta" novalidate>
+        <h2 id="tituloModalFactura">Emitir factura</h2>
+        <p id="resumenVentaFactura"></p>
+        <label>Tipo de documento
+            <select id="hfTipoDoc">
+                <option value="RUC">RUC</option>
+                <option value="CI">Cédula de identidad</option>
+                <option value="SIN_NOMBRE">Sin nombre (consumidor final)</option>
+            </select>
+        </label>
+        <label id="hfGrupoDoc">RUC o C.I.
+            <input id="hfDocumento" inputmode="numeric" autocomplete="off" placeholder="Ej.: 80012345-6">
+            <small id="hfAyuda" aria-live="polite"></small>
+        </label>
+        <label id="hfGrupoNombre">Nombre o razón social
+            <input id="hfRazonSocial" maxlength="200">
+        </label>
+        <label>Dirección <small>(opcional)</small><input id="hfDireccion" maxlength="250"></label>
+        <label>Teléfono <small>(opcional)</small><input id="hfTelefono" maxlength="50"></label>
+        <label>Correo <small>(opcional)</small><input id="hfEmail" type="email" maxlength="150"></label>
+        <div class="botones">
+            <button type="button" id="hfCancelar">Cancelar</button>
+            <button type="submit" class="primario">Emitir factura</button>
+        </div>
+    </form>
+</div>
 
 <script>
 const BASE_PATH = "../";

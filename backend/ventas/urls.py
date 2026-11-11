@@ -43,5 +43,9 @@ urlpatterns = [
     path('productos/buscar/',views.buscar_productos,name='buscar_productos'),
     path("libreta/buscar/",views.buscar_libreta),
     path('reportes/',views.reportes,name='reportes'),
+    path('facturacion/configuracion/', views.configuracion_facturacion),
+    path('facturacion/clientes/', views.buscar_cliente_documento),
+    path('factura/<int:venta_id>/', views.imprimir_factura),
+    path('<int:venta_id>/facturar/', views.facturar_venta),
 
 ]

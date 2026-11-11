@@ -65,6 +65,14 @@ class Producto(models.Model):
     blank=True
     )
 
+    # Tasa de IVA incluida en el precio de venta (Paraguay: 10 %, 5 % o exenta).
+    TASAS_IVA = (
+        (10, "IVA 10 %"),
+        (5, "IVA 5 %"),
+        (0, "Exenta"),
+    )
+    tasa_iva = models.PositiveSmallIntegerField(choices=TASAS_IVA, default=10)
+
 
 
     def __str__(self):

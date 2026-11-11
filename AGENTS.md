@@ -96,6 +96,8 @@ Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py`, `servic
 - Los productos con unidad distinta de `kg`, `g`, `lt` o `l` se venden en cantidades enteras.
 - Una venta por libreta solo se anula si el saldo pendiente de la cuenta cubre su importe; deja un `MovimientoLibreta` de tipo `ANULACION`.
 - Las compras registran los costos tal como figuran en la factura; impuesto y descuento solo se aplican si se informan. Las compras a crédito se saldan con `finanzas/cuentas-por-pagar/<id>/pagar/`.
+- Facturación (`ventas/facturacion.py`): los precios incluyen IVA y la tasa de cada línea se congela en `DetalleVenta.tasa_iva`. Las facturas guardan una copia de los datos del emisor y del timbrado; la numeración avanza en `ConfiguracionFacturacion` bajo `select_for_update` y un número emitido no se reutiliza (al anular la venta, la factura pasa a `ANULADA`). Valida el RUC con `normalizar_ruc` (dígito verificador módulo 11).
+- Las plantillas imprimibles (`frontend/ticket.html`, `frontend/factura.html`) son plantillas Django y se abren en una ventana nueva con `document.write`; incluye imágenes en línea (`{% include "img/logo_luna.svg" %}`), no por URL relativa.
 - Las migraciones se guardan en la app correspondiente. No edites migraciones ya aplicadas en una base compartida; crea una migración nueva y revisa el SQL generado.
 - Al cambiar un modelo, crea y revisa la migración antes de aplicar `migrate`.
 
@@ -118,6 +120,7 @@ Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py`, `servic
 - Las llamadas autenticadas deben adjuntar el token según el patrón existente. No guardes contraseñas ni secretos en `localStorage`.
 - Los montos que el usuario escribe como texto (por ejemplo en `prompt`) se interpretan con `window.parseMontoGs`, que toma el punto como separador de miles ("150.000" = 150000).
 - La base URL del API se centraliza en `frontend/js/api-config.js`. Usa `window.apiUrl()` o `window.API_BASE_URL`; no agregues hosts fijos a nuevos scripts. En despliegues con otro origen, configura `window.ERP_API_BASE_URL` o la meta `api-base-url` antes de cargar esa configuración.
+- Para ventanas, confirmaciones y avisos usa `frontend/js/luna-ui.js` y `frontend/css/luna-ui.css` (`LunaUI.modal`, `LunaUI.confirmar`, `LunaUI.toast`, `LunaUI.campoGuaranies`, `LunaUI.flash`) en lugar de `alert`, `prompt` o `confirm`, para mantener la identidad de Luna Minimarket. Las pantallas de compras y cuentas por cobrar ya los usan.
 - Si agregas una pantalla o acción, revisa navegación, permisos de menú, estados vacíos, errores de red y accesibilidad básica (labels, botones y foco).
 
 ## 8. Seguridad y configuración
@@ -137,7 +140,8 @@ El estado indica que hay código, no que el módulo haya pasado una validación 
 |---|---|---|
 | Usuarios y acceso | `backend/usuarios`, `frontend/login.html`, `frontend/usuarios.html` | Implementado; revisión de permisos y autenticación cubierta parcialmente por pruebas backend |
 | Productos e inventario | `backend/inventario`, `frontend/inventario`, `frontend/js/productos.js` | Productos, stock, movimientos y alertas; CRUD y ajustes cubiertos parcialmente por pruebas backend |
-| Ventas y caja | `backend/ventas`, `frontend/ventas/caja.html`, `frontend/ventas/historial_ventas.html` | POS responsivo, varias ventas en espera, cajas abiertas, impresión de ticket, historial con reimpresión y anulación (ADMIN/GERENTE). Flujos cubiertos por pruebas y E2E; falta carga concurrente de producción |
+| Ventas y caja | `backend/ventas`, `frontend/ventas/caja.html`, `frontend/ventas/historial_ventas.html` | POS responsivo, varias ventas en espera, cajas abiertas, ticket o factura, historial con reimpresión, facturación posterior y anulación (ADMIN/GERENTE). Flujos cubiertos por pruebas y E2E; falta carga concurrente de producción |
+| Facturación | `backend/ventas/facturacion.py`, `frontend/facturacion.html`, `frontend/factura.html` | Factura con timbrado, IVA 5 %/10 %/exentas, original y duplicado en ticket 80 mm o A4. Requiere timbrado autorizado por la SET para autoimpresor; no implementa SIFEN |
 | Clientes y libreta | `backend/ventas`, `frontend/ventas/libreta.html` | Cuentas por cobrar y pagos; validar saldos y auditoría de cobros |
 | Compras y proveedores | `backend/compras`, `frontend/compras/registrar_compra.html`, `frontend/compras/compras.html` | Registro y consulta separados; compras contado/crédito y pagos a proveedor (cuentas por pagar) cubiertos por pruebas; validar IVA 5 %/10 % con el contador si se requiere desglose fiscal |
 | Finanzas | `backend/finanzas`, `frontend/finanzas.html` | Movimientos financieros; validar conciliación con ventas y compras |

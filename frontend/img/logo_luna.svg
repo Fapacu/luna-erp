@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" class="logo-luna" role="img" aria-label="Luna Minimarket">
+  <g fill="none" stroke="#333" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 30 L32 10 H88 L100 30 Z"/>
+    <path d="M45 10 L41 30 M60 10 V30 M75 10 L79 30"/>
+    <path d="M20 30 a10 10 0 0 0 20 0 a10 10 0 0 0 20 0 a10 10 0 0 0 20 0 a10 10 0 0 0 20 0"/>
+    <path d="M27 40 V92 M93 40 V92"/>
+    <rect x="16" y="92" width="88" height="8" rx="2"/>
+    <rect x="36" y="52" width="30" height="21"/>
+    <path d="M51 52 V73"/>
+    <rect x="74" y="52" width="14" height="40"/>
+  </g>
+  <circle cx="84" cy="74" r="2.2" fill="#333"/>
+  <rect x="122" y="12" width="4" height="86" rx="2" fill="#E8A64B"/>
+  <g fill="#E8A64B" font-family="'Arial Black','Segoe UI',Arial,sans-serif" font-weight="900">
+    <text x="142" y="52" font-size="44" textLength="128" lengthAdjust="spacingAndGlyphs">LUNA</text>
+    <text x="142" y="98" font-size="44" textLength="270" lengthAdjust="spacingAndGlyphs">MINIMARKET</text>
+  </g>
+</svg>

@@ -99,6 +99,7 @@ const precio_venta = document.getElementById("precioVentaProducto").value
 const stock = document.getElementById("stockProducto").value
 const stock_minimo = document.getElementById("stockMinimoProducto").value
 const unidad = document.getElementById("unidadProducto").value
+const tasa_iva = Number(document.getElementById("ivaProducto").value)
 
 fetch(`${API}/inventario/productos/`,{
     method:"POST",
@@ -113,14 +114,20 @@ fetch(`${API}/inventario/productos/`,{
         precio_venta,
         stock,
         stock_minimo,
-        unidad
+        unidad,
+        tasa_iva
     })
 })
-.then(res => res.json())
+.then(async res => {
+    const data = await res.json()
+    if(!res.ok) throw new Error(data.error || data.detail || "No se pudo crear el producto")
+    return data
+})
 .then(() => {
     cerrarFormulario()
     cargarProductos()
 })
+.catch(error => alert(error.message))
 }
 
 
@@ -152,6 +159,7 @@ document.getElementById("editarPrecioVenta").value = data.precio_venta
 document.getElementById("editarStockminimo").value = data.stock_minimo
 
 document.getElementById("editarUnidad").value = data.unidad || "unidad"
+document.getElementById("editarIva").value = String(data.tasa_iva ?? 10)
 
 document.getElementById("modalEditarProducto").style.display="flex"
 
@@ -172,6 +180,7 @@ const nombre = document.getElementById("editarNombre").value
 const precio_venta = document.getElementById("editarPrecioVenta").value
 const stock_minimo = document.getElementById("editarStockminimo").value
 const unidad = document.getElementById("editarUnidad").value
+const tasa_iva = Number(document.getElementById("editarIva").value)
 
 fetch(`${API}/inventario/productos/${id}/`,{
     method:"PUT",
@@ -183,14 +192,20 @@ fetch(`${API}/inventario/productos/${id}/`,{
         nombre,
         precio_venta,
         stock_minimo,
-        unidad
+        unidad,
+        tasa_iva
     })
 })
-.then(res => res.json())
+.then(async res => {
+    const data = await res.json()
+    if(!res.ok) throw new Error(data.error || data.detail || "No se pudo actualizar el producto")
+    return data
+})
 .then(() => {
     cerrarEditar()
     cargarProductos()
 })
+.catch(error => alert(error.message))
 
 }
 

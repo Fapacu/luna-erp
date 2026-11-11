@@ -56,9 +56,17 @@ También comprueba sintaxis JavaScript con `node --check frontend/js/<archivo>.j
 
 `frontend/js/api-config.js` establece el origen del API según cómo se sirve la página. Por defecto, usa `127.0.0.1:8000` en desarrollo local y el mismo host de la página cuando se publica tras HTTPS. Para una topología distinta, define antes de cargar `api-config.js` `window.ERP_API_BASE_URL` o usa `<meta name="api-base-url" content="https://host/api">`. Si el API responde 401 (sesión vencida), la interfaz limpia la sesión y vuelve al inicio de sesión.
 
+## Tickets y facturas
+
+- Al cobrar, el POS ofrece **Ticket** (comprobante interno) o **Factura**. La factura pide RUC (se valida el dígito verificador), cédula o "Sin nombre" (RUC 44444401-7), razón social y, opcionalmente, dirección, teléfono y correo; los clientes se autocompletan por documento.
+- Un ADMIN carga en **Facturación** (`frontend/facturacion.html`) la razón social, el RUC, el timbrado y su vigencia, el establecimiento, el punto de expedición, la numeración y el formato de impresión (ticket de 80 mm o A4).
+- Cada producto tiene su tasa de IVA (10 %, 5 % o exenta). Los precios incluyen IVA; la factura muestra los valores por tasa, la liquidación del IVA y el total en letras, con original y duplicado.
+- Desde **Historial de ventas** se reimprime la factura o se emite la factura de una venta ya cobrada. Anular la venta anula su factura; el número no se reutiliza.
+- La validez legal de la factura impresa depende de que el timbrado esté autorizado por la SET para esa modalidad (autoimpresor). El sistema no emite facturas electrónicas (SIFEN).
+
 ## Datos del negocio y zona horaria
 
-- El ticket de venta imprime `NEGOCIO_NOMBRE`, `NEGOCIO_RUC`, `NEGOCIO_DIRECCION` y `NEGOCIO_TELEFONO` (ver `.env.example`). Es un comprobante interno, no una factura legal.
+- El ticket usa los datos cargados en Facturación; si están vacíos, usa `NEGOCIO_NOMBRE`, `NEGOCIO_RUC`, `NEGOCIO_DIRECCION` y `NEGOCIO_TELEFONO` (ver `.env.example`). El ticket es un comprobante interno, no una factura.
 - Las consultas por fecha usan rangos calculados en Python (`config/fechas.py`), por lo que no requieren cargar las tablas de zonas horarias de MySQL/MariaDB.
 - El inicio de sesión limita los intentos por IP (`LOGIN_THROTTLE_RATE`, por defecto `10/min`). El contador vive en memoria del proceso; con varios procesos WSGI conviene configurar una caché compartida.
 

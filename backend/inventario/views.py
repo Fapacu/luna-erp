@@ -19,10 +19,25 @@ from usuarios.permissions import requiere_roles
 # CREAR PRODUCTO
 # ======================
 
+def _tasa_iva(valor):
+    """Valida la tasa de IVA (10, 5 o 0); lanza ValueError si no es válida."""
+    try:
+        tasa = int(valor)
+    except (TypeError, ValueError):
+        raise ValueError("La tasa de IVA debe ser 10, 5 o 0 (exenta).")
+    if tasa not in dict(Producto.TASAS_IVA):
+        raise ValueError("La tasa de IVA debe ser 10, 5 o 0 (exenta).")
+    return tasa
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def crear_producto(request):
     requiere_roles(request.user, "ADMIN", "GERENTE")
+    try:
+        tasa_iva = _tasa_iva(request.data.get("tasa_iva", 10))
+    except ValueError as error:
+        return Response({"error": str(error)}, status=400)
     try:
         nombre = request.data.get("nombre", "")
         codigo_barra = request.data.get("codigo_barra", "")
@@ -69,6 +84,7 @@ def crear_producto(request):
                         stock=Decimal("0"),
                         stock_minimo=int(stock_minimo),
                         unidad=unidad,
+                        tasa_iva=tasa_iva,
                     )
             except IntegrityError:
                 return Response({"error": "El código de barras ya está registrado."}, status=400)
@@ -96,7 +112,8 @@ def crear_producto(request):
         "precio_venta": producto.precio_venta,
         "stock": producto.stock,
         "stock_minimo": producto.stock_minimo,
-        "unidad": producto.unidad
+        "unidad": producto.unidad,
+        "tasa_iva": producto.tasa_iva,
     })
 
     
@@ -131,6 +148,7 @@ def producto_detalle(request, id):
             "stock_minimo": producto.stock_minimo,
             "unidad": producto.unidad,
             "activo": producto.activo,
+            "tasa_iva": producto.tasa_iva,
         })
 
 
@@ -169,6 +187,9 @@ def producto_detalle(request, id):
                 if not isinstance(unidad, str) or not unidad.strip() or len(unidad.strip()) > 10:
                     raise ValueError("La unidad del producto no es válida.")
                 producto.unidad = unidad.strip()
+
+            if "tasa_iva" in request.data:
+                producto.tasa_iva = _tasa_iva(request.data["tasa_iva"])
 
             if "codigo_barra" in request.data:
                 codigo = request.data["codigo_barra"]
@@ -236,6 +257,7 @@ def buscar_producto(request):
             "unidad": p.unidad,
             "imagen": p.imagen.url if p.imagen else "",
             "activo": p.activo,
+            "tasa_iva": p.tasa_iva,
         })
 
     return Response(data)

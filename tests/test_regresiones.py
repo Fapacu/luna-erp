@@ -144,3 +144,17 @@ class ERPRegresionesTests(TestCase):
             "metodo_pago": "EFECTIVO", "productos": [{"id": self.product.id, "cantidad": 1}],
         }, format="json")
         self.assertEqual(response.status_code, 400, response.data)
+
+    def test_cobro_libreta_con_caja_observacion_y_comprobante(self):
+        caja = self.abrir_caja()
+        self.vender(caja, cantidad="3", metodo="LIBRETA")
+        cuenta = CuentaPorCobrar.objects.get()
+        url = f"/api/ventas/libreta/{cuenta.id}/cobrar/"
+        self.assertEqual(self.client.post(url, {"caja_id": caja.id, "monto": "5", "observacion": "x" * 201}, format="json").status_code, 400)
+        response = self.client.post(url, {"caja_id": caja.id, "monto": "30", "observacion": "Pago quincena"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["pago"]["caja_id"], caja.id)
+        self.assertEqual(response.data["pago"]["observacion"], "Pago quincena")
+        self.assertTrue(response.data["cuenta"]["cancelada"])
+        self.assertEqual(cuenta.pagos.get().observacion, "Pago quincena")
+        self.assertTrue(MovimientoCaja.objects.filter(caja=caja, tipo="INGRESO", monto=Decimal("30")).exists())

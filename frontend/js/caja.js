@@ -43,6 +43,7 @@ function persistirVentaActiva(){
     venta.monto_recibido = document.getElementById("montoRecibido")?.value || ""
     venta.cliente = document.getElementById("clienteLibreta")?.value || ""
     venta.cliente_seleccionado = clienteSeleccionado || ""
+    venta.comprobante = window.leerFormularioComprobante ? window.leerFormularioComprobante() : null
     venta.caja_id = cajaSeleccionada || ""
     try {
         localStorage.setItem(ventasStorageKey, JSON.stringify(ventasAbiertas))
@@ -92,6 +93,7 @@ function crearVentaNueva(){
     document.getElementById("clienteLibreta").value = ""
     document.getElementById("bloqueLibreta").style.display = "none"
     document.getElementById("sugerenciasLibreta").innerHTML = ""
+    window.cargarFormularioComprobante?.(null)
     renderTabla()
     calcularTotal()
     persistirVentaActiva()
@@ -116,6 +118,7 @@ function cambiarVentaActiva(id){
     document.getElementById("montoRecibido").value = venta.monto_recibido || ""
     document.getElementById("clienteLibreta").value = venta.cliente || ""
     document.getElementById("bloqueLibreta").style.display = venta.metodo_pago === "LIBRETA" ? "block" : "none"
+    window.cargarFormularioComprobante?.(venta.comprobante)
     renderTabla()
     calcularTotal()
     renderVentasAbiertas()
@@ -176,6 +179,7 @@ function restaurarVentasAbiertas(){
     document.getElementById("montoRecibido").value = venta.monto_recibido || ""
     document.getElementById("clienteLibreta").value = venta.cliente || ""
     document.getElementById("bloqueLibreta").style.display = venta.metodo_pago === "LIBRETA" ? "block" : "none"
+    window.cargarFormularioComprobante?.(venta.comprobante)
     renderTabla()
     calcularTotal()
     renderVentasAbiertas()
@@ -620,6 +624,18 @@ function finalizarVenta(){
         return
     }
 
+    let datosComprobante
+
+    try{
+        datosComprobante = window.obtenerDatosComprobante
+            ? window.obtenerDatosComprobante()
+            : { comprobante: "TICKET" }
+    }catch(error){
+        alert(error.message)
+        document.getElementById("facturaDocumento")?.focus()
+        return
+    }
+
     const btnCobrar =
     document.querySelector(
         ".btn-cobrar"
@@ -646,7 +662,8 @@ function finalizarVenta(){
                 metodo_pago,
 
                 cliente_nombre,
-                caja_id: cajaSeleccionada
+                caja_id: cajaSeleccionada,
+                ...datosComprobante
             })
         }
     )
@@ -685,17 +702,21 @@ function finalizarVenta(){
 
         cobroEnProceso = false
 
-        const imprimir = confirm(
-            `Venta realizada (${data.ticket}).
-` +
-            `Total: Gs. ${Number(data.total).toLocaleString('es-PY')}
+        const documento = data.factura ? `factura N.º ${data.factura}` : "ticket"
 
-` +
-            "¿Imprimir ticket?"
+        const imprimir = confirm(
+            `Venta realizada (${data.ticket}).\n` +
+            (data.factura ? `Factura emitida: ${data.factura}\n` : "") +
+            `Total: Gs. ${Number(data.total).toLocaleString('es-PY')}\n\n` +
+            `¿Imprimir ${documento}?`
         )
 
         if(imprimir){
-            imprimirTicket(data.venta_id)
+            if(data.factura){
+                window.imprimirFactura(data.venta_id)
+            }else{
+                window.imprimirTicket(data.venta_id)
+            }
         }
 
         completarVentaActiva()
@@ -1338,33 +1359,4 @@ function crearClienteNuevo(){
 
     persistirVentaActiva();
 
-}
-
-
-
-/* ======================
-TICKET
-====================== */
-
-async function imprimirTicket(ventaId){
-    // Se abre la ventana antes del fetch para que el navegador no la bloquee.
-    const ventana = window.open("", "_blank", "width=380,height=640")
-    try{
-        const res = await fetch(window.apiUrl(`ventas/ticket/${encodeURIComponent(ventaId)}/`), {
-            headers: { "Authorization": "Bearer " + token }
-        })
-        if(!res.ok) throw new Error("No se pudo generar el ticket")
-        const html = await res.text()
-        if(!ventana){
-            alert("El navegador bloqueó la ventana del ticket. Permite ventanas emergentes para este sitio.")
-            return
-        }
-        ventana.document.open()
-        ventana.document.write(html)
-        ventana.document.close()
-    }catch(error){
-        console.error(error)
-        if(ventana) ventana.close()
-        alert(error.message)
-    }
 }

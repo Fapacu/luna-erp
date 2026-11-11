@@ -30,6 +30,8 @@ from .models import (
 )
 
 from .services import registrar_movimiento_caja
+from .models import ConfiguracionFacturacion, Factura
+from . import facturacion
 
 
 UNIDADES_FRACCIONABLES = {"kg", "g", "lt", "l"}
@@ -68,6 +70,18 @@ def efectivo_en_caja(caja):
     retiros = resumen.get("RETIRO", Decimal("0"))
     gastos = resumen.get("GASTO", Decimal("0"))
     return caja.monto_inicial + ingresos - retiros - gastos, ingresos, retiros, gastos
+
+
+def datos_negocio():
+    """Encabezado de ticket: configuración fiscal o, si falta, variables NEGOCIO_*."""
+    config = ConfiguracionFacturacion.obtener()
+    return {
+        "nombre": config.nombre_fantasia or config.razon_social or settings.NEGOCIO["nombre"],
+        "razon_social": config.razon_social if config.razon_social != config.nombre_fantasia else "",
+        "ruc": config.ruc or settings.NEGOCIO["ruc"],
+        "direccion": ", ".join(x for x in (config.direccion, config.ciudad) if x) or settings.NEGOCIO["direccion"],
+        "telefono": config.telefono or settings.NEGOCIO["telefono"],
+    }
 
 
 def formatear_guaranies(valor):
@@ -142,6 +156,17 @@ def crear_venta(request):
             return Response({
                 "error": "Debe ingresar el nombre del cliente."
             }, status=400)
+
+        comprobante = str(request.data.get("comprobante") or "TICKET").upper()
+        if comprobante not in ("TICKET", "FACTURA"):
+            return Response({"error": "Tipo de comprobante inválido."}, status=400)
+        datos_factura = None
+        if comprobante == "FACTURA":
+            try:
+                datos_factura = facturacion.validar_datos_cliente(request.data.get("factura"))
+                facturacion.validar_configuracion(ConfiguracionFacturacion.obtener())
+            except facturacion.FacturacionError as error:
+                return Response({"error": str(error)}, status=400)
 
         with transaction.atomic():
 
@@ -218,7 +243,9 @@ def crear_venta(request):
 
                     subtotal=subtotal,
 
-                    ganancia=ganancia
+                    ganancia=ganancia,
+
+                    tasa_iva=producto.tasa_iva
 
                 )
 
@@ -340,6 +367,19 @@ def crear_venta(request):
 
             )
 
+            factura = None
+            if datos_factura:
+                try:
+                    factura = facturacion.emitir_factura(venta, datos_factura, request.user)
+                except facturacion.FacturacionError as error:
+                    transaction.set_rollback(True)
+                    return Response({"error": str(error)}, status=400)
+                registrar_auditoria(
+                    usuario=request.user, modulo="VENTAS", accion="EMITIR_FACTURA",
+                    referencia=f"Factura {factura.numero}",
+                    detalle=f"Venta #{venta.id}; cliente: {factura.cliente_documento} {factura.cliente_razon_social}",
+                )
+
             return Response({
 
                 "success": True,
@@ -348,7 +388,9 @@ def crear_venta(request):
 
                 "ticket": venta.numero_ticket,
 
-                "total": float(total)
+                "total": float(total),
+
+                "factura": factura.numero if factura else None
 
             })
 
@@ -394,8 +436,10 @@ def historial_ventas(request):
     if estado:
         ventas = ventas.filter(estado=estado)
 
+    ventas = ventas.select_related("factura")
     data = []
     for venta in ventas[:300]:
+        factura = getattr(venta, "factura", None)
         data.append({
             'id': venta.id,
             'ticket': venta.numero_ticket,
@@ -406,6 +450,7 @@ def historial_ventas(request):
             'metodo_pago': venta.metodo_pago,
             'estado': venta.estado,
             'caja': venta.caja.id if venta.caja else None,
+            'factura': factura.numero if factura else None,
         })
 
     return Response(data)
@@ -485,6 +530,7 @@ def anular_venta(request, venta_id):
 
             venta.estado = "ANULADA"
             venta.save(update_fields=["estado"])
+            Factura.objects.filter(venta=venta).update(estado="ANULADA")
             from auditoria.services import registrar_auditoria
             registrar_auditoria(
                 usuario=request.user,
@@ -1010,7 +1056,7 @@ def imprimir_ticket(request, venta_id):
         'total': formatear_guaranies(venta.total),
         'metodo': venta.get_metodo_pago_display(),
         'cliente': cliente,
-        'negocio': settings.NEGOCIO,
+        'negocio': datos_negocio(),
     })
 
     return HttpResponse(html)
@@ -1134,10 +1180,15 @@ def detalle_libreta(request, id):
 def cobrar_libreta(request, id):
     try:
         monto = Decimal(str(request.data.get("monto", "")))
-        if not monto.is_finite() or monto <= 0:
+        if not monto.is_finite() or monto <= 0 or monto.as_tuple().exponent < -2:
             raise ValueError
     except (InvalidOperation, TypeError, ValueError):
         return Response({"error": "Monto inválido"}, status=400)
+
+    observacion = request.data.get("observacion") or ""
+    if not isinstance(observacion, str) or len(observacion.strip()) > 200:
+        return Response({"error": "La observación no es válida (máximo 200 caracteres)."}, status=400)
+    observacion = observacion.strip()
 
     with transaction.atomic():
         try:
@@ -1149,7 +1200,7 @@ def cobrar_libreta(request, id):
         caja, error = seleccionar_caja_abierta(request, bloquear=True)
         if error:
             return error
-        PagoCuentaPorCobrar.objects.create(cuenta=cuenta, monto=monto)
+        pago = PagoCuentaPorCobrar.objects.create(cuenta=cuenta, monto=monto, observacion=observacion or None)
         cuenta.pagado += monto
         cuenta.saldo -= monto
         cuenta.cancelada = cuenta.saldo == 0
@@ -1172,7 +1223,26 @@ def cobrar_libreta(request, id):
             detalle=f"Cobro: {monto}; saldo restante: {cuenta.saldo}; caja #{caja.id}",
         )
 
-    return Response({"success": True, "saldo": float(cuenta.saldo)})
+    return Response({
+        "success": True,
+        "saldo": float(cuenta.saldo),
+        "pago": {
+            "id": pago.id,
+            "fecha": timezone.localtime(pago.fecha).strftime("%d/%m/%Y %H:%M"),
+            "monto": float(monto),
+            "observacion": observacion,
+            "caja_id": caja.id,
+            "cajero": request.user.username,
+        },
+        "cuenta": {
+            "id": cuenta.id,
+            "cliente": cuenta.cliente_nombre,
+            "total": float(cuenta.total),
+            "pagado": float(cuenta.pagado),
+            "saldo": float(cuenta.saldo),
+            "cancelada": cuenta.cancelada,
+        },
+    })
 
 # =========================================
 # BUSCAR LIBRETAS
@@ -1524,3 +1594,222 @@ def reportes(request):
         import logging
         logging.getLogger(__name__).exception("No se pudo generar el reporte de ventas")
         return Response({"error": "No se pudo generar el reporte solicitado."}, status=500)
+
+
+# =========================================
+# FACTURACIÓN
+# =========================================
+
+def _venta_visible(request, venta_id):
+    """Venta solicitada si el usuario puede verla (cajero: solo las propias)."""
+    try:
+        venta = Venta.objects.select_related("usuario", "caja", "cliente").get(id=venta_id)
+    except Venta.DoesNotExist:
+        return None, Response({"error": "Venta no encontrada."}, status=404)
+    if obtener_rol(request.user) not in ("ADMIN", "GERENTE") and venta.usuario_id != request.user.id:
+        return None, Response({"error": "Solo puedes acceder a tus propias ventas."}, status=403)
+    return venta, None
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def facturar_venta(request, venta_id):
+    """Emite la factura de una venta ya cobrada (el cliente la pide después)."""
+    try:
+        datos = facturacion.validar_datos_cliente(request.data)
+    except facturacion.FacturacionError as error:
+        return Response({"error": str(error)}, status=400)
+
+    with transaction.atomic():
+        venta, error = _venta_visible(request, venta_id)
+        if error:
+            return error
+        venta = Venta.objects.select_for_update().get(id=venta.id)
+        try:
+            factura = facturacion.emitir_factura(venta, datos, request.user)
+        except facturacion.FacturacionError as error:
+            transaction.set_rollback(True)
+            return Response({"error": str(error)}, status=400)
+        from auditoria.services import registrar_auditoria
+        registrar_auditoria(
+            usuario=request.user, modulo="VENTAS", accion="EMITIR_FACTURA",
+            referencia=f"Factura {factura.numero}",
+            detalle=f"Venta #{venta.id}; cliente: {factura.cliente_documento} {factura.cliente_razon_social}",
+        )
+
+    return Response({"success": True, "factura": factura.numero, "venta_id": venta.id})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def imprimir_factura(request, venta_id):
+    venta, error = _venta_visible(request, venta_id)
+    if error:
+        return error
+    factura = Factura.objects.filter(venta=venta).first()
+    if factura is None:
+        return Response({"error": "Esta venta no tiene factura."}, status=404)
+
+    lineas = []
+    for d in venta.detalleventa_set.select_related("producto").all():
+        cantidad = d.cantidad.normalize()
+        subtotal = formatear_guaranies(d.subtotal)
+        lineas.append({
+            "cantidad": f"{cantidad:f}".replace(".", ","),
+            "descripcion": d.producto.nombre,
+            "precio": formatear_guaranies(d.precio_venta),
+            "exenta": subtotal if d.tasa_iva == 0 else "",
+            "iva5": subtotal if d.tasa_iva == 5 else "",
+            "iva10": subtotal if d.tasa_iva == 10 else "",
+            "tasa": d.tasa_iva,
+            "subtotal": subtotal,
+        })
+
+    formato = str(request.query_params.get("formato") or ConfiguracionFacturacion.obtener().formato_factura).upper()
+    if formato not in ("TICKET", "A4"):
+        formato = "TICKET"
+
+    html = render_to_string("factura.html", {
+        "f": factura,
+        "venta": venta,
+        "lineas": lineas,
+        "formato": formato,
+        "fecha": timezone.localtime(factura.fecha_emision).strftime("%d/%m/%Y %H:%M"),
+        "timbrado_inicio": factura.timbrado_inicio.strftime("%d/%m/%Y"),
+        "timbrado_fin": factura.timbrado_fin.strftime("%d/%m/%Y"),
+        "total_exenta": formatear_guaranies(factura.total_exenta),
+        "total_5": formatear_guaranies(factura.total_gravada_5),
+        "total_10": formatear_guaranies(factura.total_gravada_10),
+        "iva_5": formatear_guaranies(factura.iva_5),
+        "iva_10": formatear_guaranies(factura.iva_10),
+        "iva_total": formatear_guaranies(factura.iva_5 + factura.iva_10),
+        "total": formatear_guaranies(factura.total),
+        "total_letras": facturacion.numero_a_letras(factura.total).upper(),
+        "metodo": venta.get_metodo_pago_display(),
+        "copias": ["ORIGINAL: CLIENTE", "DUPLICADO: ARCHIVO TRIBUTARIO"],
+    })
+    return HttpResponse(html)
+
+
+def _serializar_configuracion(config):
+    hoy = timezone.localdate()
+    try:
+        facturacion.validar_configuracion(config, hoy)
+        problema = ""
+    except facturacion.FacturacionError as error:
+        problema = str(error)
+    return {
+        "razon_social": config.razon_social,
+        "nombre_fantasia": config.nombre_fantasia,
+        "ruc": config.ruc,
+        "actividad_economica": config.actividad_economica,
+        "direccion": config.direccion,
+        "ciudad": config.ciudad,
+        "telefono": config.telefono,
+        "email": config.email,
+        "timbrado": config.timbrado,
+        "timbrado_inicio": config.timbrado_inicio.isoformat() if config.timbrado_inicio else "",
+        "timbrado_fin": config.timbrado_fin.isoformat() if config.timbrado_fin else "",
+        "establecimiento": config.establecimiento,
+        "punto_expedicion": config.punto_expedicion,
+        "numero_siguiente": config.numero_siguiente,
+        "numero_final": config.numero_final,
+        "proximo_numero": facturacion.numero_formateado(config.establecimiento, config.punto_expedicion, config.numero_siguiente),
+        "formato_factura": config.formato_factura,
+        "habilitada": not problema,
+        "problema": problema,
+    }
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def configuracion_facturacion(request):
+    """GET: cualquier usuario (el POS necesita saber si puede facturar). PUT: solo ADMIN."""
+    if request.method == "GET":
+        return Response(_serializar_configuracion(ConfiguracionFacturacion.obtener()))
+
+    requiere_roles(request.user, "ADMIN")
+    data = request.data if isinstance(request.data, dict) else {}
+    textos = {
+        "razon_social": 200, "nombre_fantasia": 200, "actividad_economica": 200,
+        "direccion": 250, "ciudad": 100, "telefono": 50, "email": 150,
+    }
+    with transaction.atomic():
+        config = ConfiguracionFacturacion.obtener(bloquear=True)
+        try:
+            for campo, limite in textos.items():
+                if campo in data:
+                    valor = data.get(campo) or ""
+                    if not isinstance(valor, str) or len(valor.strip()) > limite:
+                        raise facturacion.FacturacionError(f"El campo {campo} no es válido (máximo {limite} caracteres).")
+                    setattr(config, campo, valor.strip())
+            if "ruc" in data:
+                config.ruc = facturacion.normalizar_ruc(data.get("ruc")) if data.get("ruc") else ""
+            if "timbrado" in data:
+                timbrado = str(data.get("timbrado") or "").strip()
+                if timbrado and not (timbrado.isdigit() and len(timbrado) == 8):
+                    raise facturacion.FacturacionError("El timbrado debe tener 8 dígitos.")
+                config.timbrado = timbrado
+            for campo in ("timbrado_inicio", "timbrado_fin"):
+                if campo in data:
+                    valor = data.get(campo)
+                    fecha = facturacion.es_fecha(valor) if valor else None
+                    if valor and fecha is None:
+                        raise facturacion.FacturacionError("Las fechas del timbrado deben tener el formato AAAA-MM-DD.")
+                    setattr(config, campo, fecha)
+            if config.timbrado_inicio and config.timbrado_fin and config.timbrado_fin < config.timbrado_inicio:
+                raise facturacion.FacturacionError("El fin de vigencia del timbrado no puede ser anterior al inicio.")
+            for campo, maximo in (("establecimiento", 999), ("punto_expedicion", 999), ("numero_siguiente", 9999999)):
+                if campo in data:
+                    try:
+                        valor = int(data.get(campo))
+                    except (TypeError, ValueError):
+                        raise facturacion.FacturacionError(f"El campo {campo} debe ser un número entero.")
+                    if not 1 <= valor <= maximo:
+                        raise facturacion.FacturacionError(f"El campo {campo} debe estar entre 1 y {maximo}.")
+                    setattr(config, campo, valor)
+            if "numero_final" in data:
+                valor = data.get("numero_final")
+                if valor in (None, ""):
+                    config.numero_final = None
+                else:
+                    try:
+                        config.numero_final = int(valor)
+                    except (TypeError, ValueError):
+                        raise facturacion.FacturacionError("El número final debe ser un entero.")
+                    if not 1 <= config.numero_final <= 9999999:
+                        raise facturacion.FacturacionError("El número final debe estar entre 1 y 9999999.")
+            if "formato_factura" in data:
+                formato = str(data.get("formato_factura") or "").upper()
+                if formato not in dict(ConfiguracionFacturacion.FORMATOS):
+                    raise facturacion.FacturacionError("Formato de factura inválido.")
+                config.formato_factura = formato
+            usado = Factura.objects.filter(numero=facturacion.numero_formateado(
+                config.establecimiento, config.punto_expedicion, config.numero_siguiente)).exists()
+            if usado:
+                raise facturacion.FacturacionError("El próximo número de factura ya fue utilizado. Indica un número mayor.")
+        except facturacion.FacturacionError as error:
+            transaction.set_rollback(True)
+            return Response({"error": str(error)}, status=400)
+        config.save()
+        from auditoria.services import registrar_auditoria
+        registrar_auditoria(
+            usuario=request.user, modulo="FACTURACION", accion="CONFIGURAR_FACTURACION",
+            referencia=f"Timbrado {config.timbrado or '-'}",
+            detalle=f"RUC {config.ruc}; próximo número {config.numero_siguiente}",
+        )
+    return Response(_serializar_configuracion(config))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def buscar_cliente_documento(request):
+    """Autocompleta datos de factura a partir del RUC o la cédula."""
+    documento = (request.query_params.get("documento") or "").strip().replace(".", "")
+    if len(documento) < 3:
+        return Response([])
+    clientes = Cliente.objects.filter(ruc__startswith=documento, activo=True).order_by("nombre")[:10]
+    return Response([
+        {"documento": c.ruc, "razon_social": c.nombre, "direccion": c.direccion or "", "telefono": c.telefono or ""}
+        for c in clientes
+    ])

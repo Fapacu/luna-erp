@@ -932,3 +932,53 @@ RESPONSIVE
     .btn-cobrar{position:sticky;bottom:8px;z-index:5;min-height:54px;box-shadow:0 4px 16px #0002}
     .card-pos input,.card-pos select,.stats input,.stats button{min-height:46px;font-size:16px}
 }
+
+/* =========================
+   COMPROBANTE / FACTURA
+========================= */
+
+.comprobante-pos label{
+display:block;
+margin-top:10px;
+font-weight:600;
+}
+
+.comprobante-pos select,
+#bloqueFactura select{
+width:100%;
+padding:12px;
+border-radius:8px;
+border:1px solid #ddd;
+margin-top:8px;
+background:#fff;
+}
+
+.factura-ayuda{
+display:block;
+min-height:16px;
+margin-top:4px;
+font-size:12px;
+color:#6b7280;
+}
+
+.factura-ayuda.ok{ color:#15803d; }
+.factura-ayuda.error{ color:#dc2626; }
+
+#sugerenciasFactura{
+display:flex;
+flex-direction:column;
+gap:4px;
+margin-top:4px;
+}
+
+.sugerencia-factura{
+text-align:left;
+padding:8px 10px;
+border:1px solid #e5e7eb;
+border-radius:8px;
+background:#f9fafb;
+cursor:pointer;
+font-size:13px;
+}
+
+.sugerencia-factura:hover{ background:#fff7ed; border-color:#fdba74; }
