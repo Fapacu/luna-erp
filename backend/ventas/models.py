@@ -220,6 +220,8 @@ class MovimientoLibreta(models.Model):
 
         ("PAGO", "Pago"),
 
+        ("ANULACION", "Anulación"),
+
     )
 
     cuenta = models.ForeignKey(

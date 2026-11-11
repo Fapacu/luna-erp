@@ -6,7 +6,7 @@ La interfaz está en español, usa guaraníes y configura `America/Asuncion`. El
 
 ## Estado
 
-Los módulos principales están implementados y existe una suite de pruebas de flujos del backend en `tests/test_erp_flows.py`. Eso no equivale a una certificación integral ni a una validación en producción: antes de operar con datos reales hay que ejecutar la lista de puesta en marcha y validar el entorno, los permisos, los respaldos y los flujos en navegador.
+Los módulos principales están implementados y existe una suite de pruebas de flujos del backend en `tests/` (`test_erp_flows.py` y `test_regresiones.py`). Eso no equivale a una certificación integral ni a una validación en producción: antes de operar con datos reales hay que ejecutar la lista de puesta en marcha y validar el entorno, los permisos, los respaldos y los flujos en navegador.
 
 ## Desarrollo local en Windows
 
@@ -48,11 +48,19 @@ cd backend
 python manage.py test --settings=config.settings_test --verbosity 2
 ```
 
+El runner `config.test_runner.RepoTestRunner` descubre automáticamente la carpeta `tests/` de la raíz.
+
 También comprueba sintaxis JavaScript con `node --check frontend/js/<archivo>.js`.
 
 ## Configuración de API
 
-`frontend/js/api-config.js` establece el origen del API según cómo se sirve la página. Por defecto, usa `127.0.0.1:8000` en desarrollo local y el mismo host de la página cuando se publica tras HTTPS. Para una topología distinta, define antes de cargar `api-config.js` `window.ERP_API_BASE_URL` o usa `<meta name="api-base-url" content="https://host/api">`. Las llamadas antiguas al túnel existente se redirigen temporalmente a este origen central.
+`frontend/js/api-config.js` establece el origen del API según cómo se sirve la página. Por defecto, usa `127.0.0.1:8000` en desarrollo local y el mismo host de la página cuando se publica tras HTTPS. Para una topología distinta, define antes de cargar `api-config.js` `window.ERP_API_BASE_URL` o usa `<meta name="api-base-url" content="https://host/api">`. Si el API responde 401 (sesión vencida), la interfaz limpia la sesión y vuelve al inicio de sesión.
+
+## Datos del negocio y zona horaria
+
+- El ticket de venta imprime `NEGOCIO_NOMBRE`, `NEGOCIO_RUC`, `NEGOCIO_DIRECCION` y `NEGOCIO_TELEFONO` (ver `.env.example`). Es un comprobante interno, no una factura legal.
+- Las consultas por fecha usan rangos calculados en Python (`config/fechas.py`), por lo que no requieren cargar las tablas de zonas horarias de MySQL/MariaDB.
+- El inicio de sesión limita los intentos por IP (`LOGIN_THROTTLE_RATE`, por defecto `10/min`). El contador vive en memoria del proceso; con varios procesos WSGI conviene configurar una caché compartida.
 
 ## Preparación para producción
 

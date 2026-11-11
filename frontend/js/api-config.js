@@ -25,6 +25,14 @@
 
     window.API_BASE_URL = apiBase;
     window.apiUrl = (path = "") => `${apiBase}/${String(path).replace(/^\/+/, "")}`;
+    // Interpreta montos en guaraníes escritos como "150.000", "150000" o "150 000".
+    // El guaraní no usa decimales, así que el punto se toma como separador de miles.
+    // Devuelve un número entero o NaN si el texto no es un monto válido.
+    window.parseMontoGs = (texto) => {
+        const limpio = String(texto ?? "").trim().replace(/^gs\.?\s*/i, "").replace(/[\s.]/g, "");
+        if (!/^\d+(,\d{1,2})?$/.test(limpio)) return NaN;
+        return Math.round(Number(limpio.replace(",", ".")));
+    };
     window.escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
         "&": "&amp;",
         "<": "&lt;",
@@ -33,23 +41,32 @@
         "'": "&#39;",
     })[character]);
 
-    // Compatibilidad temporal para pantallas que todavía conservan el host anterior.
+    // Sesión expirada: si el API responde 401 a una llamada autenticada,
+    // se limpia la sesión local y se vuelve al inicio de sesión.
     const originalFetch = window.fetch.bind(window);
-    const oldHosts = new Set([
-        "berry-previews-compensation-big.trycloudflare.com",
-        "192.168.100.30",
-    ]);
-    window.fetch = (resource, options) => {
-        if (typeof resource === "string" || resource instanceof URL) {
-            try {
-                const requested = new URL(resource, location.href);
-                if (oldHosts.has(requested.hostname)) {
-                    resource = `${apiBase}${requested.pathname.replace(/^\/api/, "")}${requested.search}${requested.hash}`;
-                }
-            } catch (error) {
-                console.error("URL de API inválida:", error);
+    let redirigiendo = false;
+    const loginUrl = () => {
+        const enSubcarpeta = /\/(inventario|ventas|compras)\//.test(location.pathname);
+        return (enSubcarpeta ? "../" : "") + "login.html";
+    };
+    window.fetch = async (resource, options) => {
+        const response = await originalFetch(resource, options);
+        try {
+            const url = typeof resource === "string" ? resource
+                : resource instanceof URL ? resource.href
+                : resource?.url || "";
+            const esApi = url.startsWith(apiBase);
+            const esLogin = /\/login\/?$/.test(new URL(url, location.href).pathname);
+            if (response.status === 401 && esApi && !esLogin && !redirigiendo
+                    && !location.pathname.endsWith("login.html")) {
+                redirigiendo = true;
+                ["token", "usuario", "rol", "username"].forEach((clave) => localStorage.removeItem(clave));
+                alert("Tu sesión expiró. Vuelve a iniciar sesión.");
+                location.href = loginUrl();
             }
+        } catch (error) {
+            console.error("No se pudo verificar la respuesta del API:", error);
         }
-        return originalFetch(resource, options);
+        return response;
     };
 })();

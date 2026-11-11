@@ -1,4 +1,5 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from usuarios.models import UsuarioPerfil
@@ -9,8 +10,17 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from auditoria.services import registrar_auditoria
 
 
+class LoginThrottle(SimpleRateThrottle):
+    """Limita los intentos de inicio de sesión por dirección IP."""
+    scope = "login"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
 def login_personalizado(request):
 
     username = request.data.get(
@@ -20,6 +30,9 @@ def login_personalizado(request):
     password = request.data.get(
         "password"
     )
+
+    if not isinstance(username, str) or not isinstance(password, str) or not username.strip() or not password:
+        return Response({"error": "Ingresa usuario y contraseña."}, status=400)
 
     user = authenticate(
 

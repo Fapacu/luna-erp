@@ -1,4 +1,6 @@
-from decimal import Decimal, InvalidOperation
+from config.fechas import filtrar_rango, totales_por_dia
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import date
 from django.db.models import Q
 from django.db import transaction
 from django.db.models import Sum
@@ -13,7 +15,9 @@ from inventario.services import registrar_movimiento
 from inventario.models import Producto
 from finanzas.services import registrar_ingreso
 from finanzas.services import registrar_egreso
-from usuarios.permissions import requiere_roles
+from usuarios.permissions import requiere_roles, obtener_rol
+from django.utils import timezone
+from django.conf import settings
 from .models import (
     Venta,
     DetalleVenta,
@@ -28,21 +32,80 @@ from .models import (
 from .services import registrar_movimiento_caja
 
 
+UNIDADES_FRACCIONABLES = {"kg", "g", "lt", "l"}
+
+
 def seleccionar_caja_abierta(request, requerida=True, bloquear=False):
-    """Resuelve la caja activa solicitada por el POS sin cruzar movimientos."""
-    caja_id = request.data.get("caja_id") or request.query_params.get("caja_id")
+    """Resuelve la caja indicada por el POS sin cruzar movimientos entre cajas.
+
+    Si no se envía ``caja_id`` solo se usa una caja abierta del propio usuario;
+    nunca se toma arbitrariamente la caja de otra persona.
+    """
+    datos = request.data if isinstance(request.data, dict) else {}
+    caja_id = datos.get("caja_id") or request.query_params.get("caja_id")
     cajas = Caja.objects.filter(abierta=True)
     if bloquear:
         cajas = cajas.select_for_update()
     if caja_id:
         try:
-            return cajas.get(id=caja_id), None
-        except (Caja.DoesNotExist, ValueError):
+            return cajas.get(id=int(caja_id)), None
+        except (Caja.DoesNotExist, ValueError, TypeError):
             return None, Response({"error": "La caja seleccionada no existe o está cerrada"}, status=400)
-    caja = cajas.filter(usuario=request.user).order_by("-id").first() or cajas.order_by("-id").first()
+    caja = cajas.filter(usuario=request.user).order_by("-id").first()
     if requerida and not caja:
-        return None, Response({"error": "No hay caja abierta"}, status=400)
+        return None, Response({"error": "No hay una caja abierta seleccionada"}, status=400)
     return caja, None
+
+
+def efectivo_en_caja(caja):
+    """Efectivo esperado: apertura + ingresos - retiros - gastos."""
+    resumen = {
+        item["tipo"]: item["total"] or Decimal("0")
+        for item in MovimientoCaja.objects.filter(caja=caja)
+        .values("tipo").annotate(total=Sum("monto"))
+    }
+    ingresos = resumen.get("INGRESO", Decimal("0"))
+    retiros = resumen.get("RETIRO", Decimal("0"))
+    gastos = resumen.get("GASTO", Decimal("0"))
+    return caja.monto_inicial + ingresos - retiros - gastos, ingresos, retiros, gastos
+
+
+def formatear_guaranies(valor):
+    """Formatea un importe en guaraníes sin decimales: 1234567 -> 1.234.567."""
+    entero = Decimal(valor or 0).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"{entero:,}".replace(",", ".")
+
+
+def _parse_fecha(valor):
+    """Devuelve una fecha a partir de AAAA-MM-DD, None si viene vacía o ValueError."""
+    if not valor:
+        return None
+    return date.fromisoformat(str(valor).strip())
+
+
+def _validar_cliente(data):
+    """Normaliza los campos editables de un cliente."""
+    if not isinstance(data, dict):
+        return None, Response({"error": "Datos de cliente inválidos."}, status=400)
+    limites = {"nombre": 200, "telefono": 50, "ruc": 50, "direccion": 500}
+    datos = {}
+    for campo, limite in limites.items():
+        if campo not in data:
+            continue
+        valor = data.get(campo)
+        if valor is None:
+            valor = ""
+        if not isinstance(valor, str):
+            return None, Response({"error": f"El campo {campo} no es válido."}, status=400)
+        valor = valor.strip()
+        if len(valor) > limite:
+            return None, Response({"error": f"El campo {campo} supera {limite} caracteres."}, status=400)
+        datos[campo] = valor if (valor or campo == "nombre") else None
+    if "activo" in data:
+        if not isinstance(data["activo"], bool):
+            return None, Response({"error": "El estado activo debe ser verdadero o falso."}, status=400)
+        datos["activo"] = data["activo"]
+    return datos, None
 
 
 # =========================================
@@ -65,11 +128,14 @@ def crear_venta(request):
         if not isinstance(metodo_pago, str) or metodo_pago not in metodos_validos:
             return Response({"error": "Método de pago inválido."}, status=400)
 
-        if not productos:
+        if not productos or not isinstance(productos, list):
 
             return Response({
                 "error": "No hay productos."
             }, status=400)
+
+        if len(cliente_nombre) > 200:
+            return Response({"error": "El nombre del cliente es demasiado largo."}, status=400)
 
         if metodo_pago == "LIBRETA" and not cliente_nombre:
 
@@ -114,6 +180,10 @@ def crear_venta(request):
                     transaction.set_rollback(True)
                     return Response({"error": "La cantidad debe ser positiva y tener hasta tres decimales."}, status=400)
 
+                if (producto.unidad or "").lower() not in UNIDADES_FRACCIONABLES and cantidad != cantidad.to_integral_value():
+                    transaction.set_rollback(True)
+                    return Response({"error": f"{producto.nombre} se vende por unidad; la cantidad debe ser entera."}, status=400)
+
                 if producto.stock < cantidad:
 
                     transaction.set_rollback(True)
@@ -128,11 +198,11 @@ def crear_venta(request):
                 costo_unitario = Decimal(str(producto.costo_promedio or producto.precio_compra))
                 precio = Decimal(str(producto.precio_venta))
 
-                subtotal = precio * cantidad
+                subtotal = (precio * cantidad).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                 ganancia = (
-                    precio - costo_unitario
-                ) * cantidad
+                    (precio - costo_unitario) * cantidad
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                 DetalleVenta.objects.create(
 
@@ -299,29 +369,46 @@ def crear_venta(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-
 def historial_ventas(request):
-    ventas = Venta.objects.select_related(
-        'usuario',
-        'caja',
-        'cliente'
-    ).order_by('-fecha')[:200]
+    """Últimas ventas con filtros opcionales. El cajero solo ve sus ventas."""
+    ventas = Venta.objects.select_related('usuario', 'caja', 'cliente').order_by('-fecha')
+
+    if obtener_rol(request.user) not in ("ADMIN", "GERENTE"):
+        ventas = ventas.filter(usuario=request.user)
+
+    try:
+        desde = _parse_fecha(request.query_params.get("desde"))
+        hasta = _parse_fecha(request.query_params.get("hasta"))
+    except ValueError:
+        return Response({"error": "Fechas inválidas. Usa el formato AAAA-MM-DD."}, status=400)
+    ventas = filtrar_rango(ventas, "fecha", desde, hasta)
+
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        filtro = Q(numero_ticket__icontains=q)
+        if q.isdigit():
+            filtro |= Q(id=int(q))
+        ventas = ventas.filter(filtro)
+
+    estado = (request.query_params.get("estado") or "").strip().upper()
+    if estado:
+        ventas = ventas.filter(estado=estado)
 
     data = []
-
-    for venta in ventas:
+    for venta in ventas[:300]:
         data.append({
             'id': venta.id,
             'ticket': venta.numero_ticket,
-            'fecha': venta.fecha.strftime('%d/%m/%Y %H:%M'),
+            'fecha': timezone.localtime(venta.fecha).strftime('%d/%m/%Y %H:%M'),
             'usuario': venta.usuario.username if venta.usuario else 'N/A',
             'cliente': venta.cliente.nombre if venta.cliente else 'Consumidor Final',
             'total': float(venta.total),
             'metodo_pago': venta.metodo_pago,
+            'estado': venta.estado,
             'caja': venta.caja.id if venta.caja else None,
         })
 
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
 
 # =========================================
@@ -355,19 +442,31 @@ def anular_venta(request, venta_id):
                 ).select_related("cuenta").first()
                 if movimiento:
                     cuenta = CuentaPorCobrar.objects.select_for_update().get(id=movimiento.cuenta_id)
-                    if cuenta.pagado > 0:
+                    # La cuenta acumula varias ventas; solo se puede descontar
+                    # lo que todavía se adeuda sin devolver dinero ya cobrado.
+                    if cuenta.saldo < venta.total:
                         transaction.set_rollback(True)
-                        return Response({"error": "No se puede anular: la cuenta asociada ya tiene pagos. Regulariza la libreta primero."}, status=400)
-                    cuenta.total = max(Decimal("0"), cuenta.total - venta.total)
-                    cuenta.saldo = max(Decimal("0"), cuenta.saldo - venta.total)
+                        return Response({"error": "No se puede anular: el saldo pendiente de la libreta es menor que la venta. Regulariza la libreta primero."}, status=400)
+                    cuenta.total -= venta.total
+                    cuenta.saldo -= venta.total
                     cuenta.cancelada = cuenta.saldo == 0
                     cuenta.save(update_fields=["total", "saldo", "cancelada"])
+                    MovimientoLibreta.objects.create(
+                        cuenta=cuenta, venta=venta, tipo="ANULACION", monto=venta.total
+                    )
             else:
-                caja_reembolso, error = seleccionar_caja_abierta(request)
-                if venta.metodo_pago == "EFECTIVO" and error:
-                    transaction.set_rollback(True)
-                    return Response({"error": "Abre o selecciona una caja para registrar la devolución en efectivo."}, status=400)
                 if venta.metodo_pago == "EFECTIVO":
+                    caja_reembolso = None
+                    if venta.caja_id:
+                        caja_reembolso = Caja.objects.select_for_update().filter(id=venta.caja_id, abierta=True).first()
+                    if caja_reembolso is None:
+                        caja_reembolso, error = seleccionar_caja_abierta(request, bloquear=True)
+                        if error:
+                            transaction.set_rollback(True)
+                            return Response({"error": "La caja original está cerrada. Abre o selecciona una caja para registrar la devolución en efectivo."}, status=400)
+                    if efectivo_en_caja(caja_reembolso)[0] < venta.total:
+                        transaction.set_rollback(True)
+                        return Response({"error": "La caja no tiene efectivo suficiente para devolver esta venta."}, status=400)
                     registrar_movimiento_caja(
                         caja=caja_reembolso,
                         tipo="RETIRO",
@@ -422,6 +521,11 @@ def abrir_caja(request):
     except (InvalidOperation, TypeError, ValueError):
         return Response({"error": "Monto inicial inválido"}, status=400)
     caja = Caja.objects.create(usuario=request.user, monto_inicial=monto_inicial, abierta=True)
+    from auditoria.services import registrar_auditoria
+    registrar_auditoria(
+        usuario=request.user, modulo="CAJA", accion="ABRIR_CAJA",
+        referencia=f"Caja #{caja.id}", detalle=f"Monto inicial: {monto_inicial}",
+    )
 
     return Response({
         "success": True,
@@ -445,21 +549,7 @@ def caja_actual(request):
             "error": "No hay caja abierta"
         }, status=400)
 
-    resumen = {
-        item["tipo"]: item["total"] or Decimal("0")
-        for item in MovimientoCaja.objects.filter(caja=caja)
-        .values("tipo").annotate(total=Sum("monto"))
-    }
-    ingresos = resumen.get("INGRESO", Decimal("0"))
-    retiros = resumen.get("RETIRO", Decimal("0"))
-    gastos = resumen.get("GASTO", Decimal("0"))
-
-    monto_actual = (
-        Decimal(str(caja.monto_inicial))
-        + Decimal(str(ingresos))
-        - Decimal(str(retiros))
-        - Decimal(str(gastos))
-    )
+    monto_actual, ingresos, retiros, gastos = efectivo_en_caja(caja)
 
     return Response({
 
@@ -497,7 +587,12 @@ def retiro_caja(request):
             caja, error = seleccionar_caja_abierta(request, bloquear=True)
             if error:
                 return error
+            if monto > efectivo_en_caja(caja)[0]:
+                return Response({"error": "El retiro supera el efectivo disponible en la caja."}, status=400)
             registrar_movimiento_caja(caja=caja, tipo="RETIRO", descripcion=descripcion.strip(), monto=monto, usuario=request.user)
+            from auditoria.services import registrar_auditoria
+            registrar_auditoria(usuario=request.user, modulo="CAJA", accion="RETIRO_CAJA",
+                                referencia=f"Caja #{caja.id}", detalle=f"{descripcion.strip()[:150]}: {monto}")
 
         return Response({
             "success": True
@@ -533,6 +628,8 @@ def gasto_caja(request):
             caja, error = seleccionar_caja_abierta(request, bloquear=True)
             if error:
                 return error
+            if monto > efectivo_en_caja(caja)[0]:
+                return Response({"error": "El gasto supera el efectivo disponible en la caja."}, status=400)
             registrar_movimiento_caja(caja=caja, tipo="GASTO", descripcion=descripcion.strip(), monto=monto, usuario=request.user)
             registrar_egreso(
                 categoria="GASTO",
@@ -575,16 +672,7 @@ def cerrar_caja(request):
         ventas_total = Venta.objects.filter(
             caja=caja, estado="COMPLETADA"
         ).aggregate(total=Sum("total"))["total"] or Decimal("0")
-        resumen = {
-            item["tipo"]: item["total"] or Decimal("0")
-            for item in MovimientoCaja.objects.filter(caja=caja)
-            .values("tipo").annotate(total=Sum("monto"))
-        }
-        monto_sistema = (
-            caja.monto_inicial + resumen.get("INGRESO", Decimal("0"))
-            - resumen.get("RETIRO", Decimal("0"))
-            - resumen.get("GASTO", Decimal("0"))
-        )
+        monto_sistema = efectivo_en_caja(caja)[0]
         diferencia = monto_real - monto_sistema
         caja.total_vendido = ventas_total
         caja.monto_cierre = monto_real
@@ -726,34 +814,15 @@ def clientes(request):
 
     if request.method == 'POST':
 
-        data = request.data
+        datos, error = _validar_cliente(request.data)
+        if error:
+            return error
+        if not datos.get("nombre"):
+            return Response({"error": "El nombre del cliente es obligatorio."}, status=400)
 
-        cliente = Cliente.objects.create(
+        cliente = Cliente.objects.create(**datos)
 
-            nombre=data.get("nombre"),
-
-            telefono=data.get(
-                "telefono"
-            ),
-
-            ruc=data.get("ruc"),
-
-            direccion=data.get(
-                "direccion"
-            ),
-
-            activo=data.get(
-                "activo",
-                True
-            )
-        )
-
-        return Response({
-
-            "success": True,
-
-            "id": cliente.id
-        })
+        return Response({"success": True, "id": cliente.id})
 
 
 # =========================================
@@ -855,52 +924,30 @@ def cliente_detalle(request, id):
 
     if request.method == 'PUT':
 
-        data = request.data
-
-        cliente.nombre = data.get(
-            "nombre",
-            cliente.nombre
-        )
-
-        cliente.telefono = data.get(
-            "telefono",
-            cliente.telefono
-        )
-
-        cliente.ruc = data.get(
-            "ruc",
-            cliente.ruc
-        )
-
-        cliente.direccion = data.get(
-            "direccion",
-            cliente.direccion
-        )
-
-        cliente.activo = data.get(
-            "activo",
-            cliente.activo
-        )
-
+        datos, error = _validar_cliente(request.data)
+        if error:
+            return error
+        if "nombre" in datos and not datos["nombre"]:
+            return Response({"error": "El nombre del cliente es obligatorio."}, status=400)
+        for campo, valor in datos.items():
+            setattr(cliente, campo, valor)
         cliente.save()
 
-        return Response({
-            "success": True
-        })
+        return Response({"success": True})
 
 
     # ======================
-    # DELETE
+    # DELETE (archivado lógico para conservar el historial)
     # ======================
 
     if request.method == 'DELETE':
+        requiere_roles(request.user, "ADMIN", "GERENTE")
 
-        cliente.delete()
+        cliente.activo = False
+        cliente.save(update_fields=["activo"])
 
-        return Response({
-            "success": True
-        })
-    
+        return Response({"success": True, "activo": False})
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -938,11 +985,32 @@ def imprimir_ticket(request, venta_id):
     except Venta.DoesNotExist:
         return Response({"error": "Venta no encontrada."}, status=404)
 
-    detalles = venta.detalleventa_set.select_related("producto").all()
+    if obtener_rol(request.user) not in ("ADMIN", "GERENTE") and venta.usuario_id != request.user.id:
+        return Response({"error": "Solo puedes reimprimir tus propias ventas."}, status=403)
+
+    lineas = []
+    for d in venta.detalleventa_set.select_related("producto").all():
+        cantidad = d.cantidad.normalize()
+        lineas.append({
+            "nombre": d.producto.nombre,
+            "cantidad": f"{cantidad:f}".replace(".", ","),
+            "precio": formatear_guaranies(d.precio_venta),
+            "subtotal": formatear_guaranies(d.subtotal),
+        })
+
+    cliente = venta.cliente.nombre if venta.cliente_id else ""
+    if not cliente and venta.metodo_pago == "LIBRETA":
+        mov = MovimientoLibreta.objects.filter(venta=venta, tipo="COMPRA").select_related("cuenta").first()
+        cliente = mov.cuenta.cliente_nombre if mov else ""
 
     html = render_to_string('ticket.html', {
         'venta': venta,
-        'detalles': detalles
+        'lineas': lineas,
+        'fecha': timezone.localtime(venta.fecha).strftime('%d/%m/%Y %H:%M'),
+        'total': formatear_guaranies(venta.total),
+        'metodo': venta.get_metodo_pago_display(),
+        'cliente': cliente,
+        'negocio': settings.NEGOCIO,
     })
 
     return HttpResponse(html)
@@ -981,7 +1049,7 @@ def libreta(request):
             c.cancelada,
 
             "fecha":
-            c.fecha.strftime(
+            timezone.localtime(c.fecha).strftime(
                 "%d/%m/%Y %H:%M"
             )
 
@@ -1012,7 +1080,7 @@ def detalle_libreta(request, id):
 
             "tipo": m.tipo,
 
-            "fecha": m.fecha.strftime("%d/%m/%Y %H:%M"),
+            "fecha": timezone.localtime(m.fecha).strftime("%d/%m/%Y %H:%M"),
 
             "monto": float(m.monto),
 
@@ -1023,9 +1091,9 @@ def detalle_libreta(request, id):
         # Si el movimiento proviene de una venta,
         # cargar los productos de esa venta.
 
-        if m.venta:
+        if m.venta_id and m.tipo == "COMPRA":
 
-            detalles = DetalleVenta.objects.filter(
+            detalles = DetalleVenta.objects.select_related("producto").filter(
                 venta=m.venta
             )
 
@@ -1049,7 +1117,7 @@ def detalle_libreta(request, id):
 
         "cliente": cuenta.cliente_nombre,
 
-        "fecha": cuenta.fecha.strftime("%d/%m/%Y %H:%M"),
+        "fecha": timezone.localtime(cuenta.fecha).strftime("%d/%m/%Y %H:%M"),
 
         "total": float(cuenta.total),
 
@@ -1096,6 +1164,12 @@ def cobrar_libreta(request, id):
             categoria="VENTA", descripcion=f"Cobro libreta - {cuenta.cliente_nombre}",
             monto=monto, usuario=request.user, metodo_pago="EFECTIVO",
             referencia=f"Cuenta #{cuenta.id}",
+        )
+        from auditoria.services import registrar_auditoria
+        registrar_auditoria(
+            usuario=request.user, modulo="LIBRETA", accion="COBRAR_LIBRETA",
+            referencia=f"Cuenta #{cuenta.id}",
+            detalle=f"Cobro: {monto}; saldo restante: {cuenta.saldo}; caja #{caja.id}",
         )
 
     return Response({"success": True, "saldo": float(cuenta.saldo)})
@@ -1150,15 +1224,14 @@ def buscar_libreta(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def reportes(request):
+    requiere_roles(request.user, "ADMIN", "GERENTE")
+    try:
+        desde = _parse_fecha(request.GET.get("desde"))
+        hasta = _parse_fecha(request.GET.get("hasta"))
+    except ValueError:
+        return Response({"error": "Fechas inválidas. Usa el formato AAAA-MM-DD."}, status=400)
 
     try:
-
-        # =========================================
-        # FECHAS
-        # =========================================
-
-        desde = request.GET.get("desde")
-        hasta = request.GET.get("hasta")
 
         ventas = Venta.objects.filter(
             estado="COMPLETADA"
@@ -1168,21 +1241,7 @@ def reportes(request):
         # FILTRO DESDE
         # -----------------------------------------
 
-        if desde:
-
-            ventas = ventas.filter(
-                fecha__date__gte=desde
-            )
-
-        # -----------------------------------------
-        # FILTRO HASTA
-        # -----------------------------------------
-
-        if hasta:
-
-            ventas = ventas.filter(
-                fecha__date__lte=hasta
-            )
+        ventas = filtrar_rango(ventas, "fecha", desde, hasta)
 
 
         # =========================================
@@ -1375,17 +1434,7 @@ def reportes(request):
             tipo="PAGO"
         )
 
-        if desde:
-
-            movimientos_libreta = movimientos_libreta.filter(
-                fecha__date__gte=desde
-            )
-
-        if hasta:
-
-            movimientos_libreta = movimientos_libreta.filter(
-                fecha__date__lte=hasta
-            )
+        movimientos_libreta = filtrar_rango(movimientos_libreta, "fecha", desde, hasta)
 
 
         libreta_cobrado = (
@@ -1416,40 +1465,10 @@ def reportes(request):
         # VENTAS POR DÍA
         # =========================================
 
-        from django.db.models.functions import TruncDate
-
-        ventas_dia = ventas.annotate(
-
-            dia=TruncDate("fecha")
-
-        ).values(
-            "dia"
-        ).annotate(
-
-            total=Sum("total"),
-
-        ).order_by(
-            "dia"
-        )
-
-
-        ventas_por_dia = []
-
-        for venta_dia in ventas_dia:
-
-            ventas_por_dia.append({
-
-                "fecha":
-                venta_dia["dia"].strftime(
-                    "%Y-%m-%d"
-                ),
-
-                "total":
-                float(
-                    venta_dia["total"] or 0
-                )
-
-            })
+        ventas_por_dia = [
+            {"fecha": dia.isoformat(), "total": float(total)}
+            for dia, total in totales_por_dia(ventas)
+        ]
 
 
         # =========================================

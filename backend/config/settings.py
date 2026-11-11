@@ -118,6 +118,24 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        # Limita intentos de inicio de sesión por IP para frenar fuerza bruta.
+        'login': os.getenv('LOGIN_THROTTLE_RATE', '10/min'),
+    },
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+
+# Datos impresos en el ticket de venta.
+NEGOCIO = {
+    'nombre': os.getenv('NEGOCIO_NOMBRE', 'Luna Minimarket'),
+    'ruc': os.getenv('NEGOCIO_RUC', ''),
+    'direccion': os.getenv('NEGOCIO_DIRECCION', ''),
+    'telefono': os.getenv('NEGOCIO_TELEFONO', ''),
 }
 
 SIMPLE_JWT = {

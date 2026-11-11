@@ -1,3 +1,4 @@
+from config.fechas import rango_dia
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -21,8 +22,10 @@ def estadisticas(request):
     # 🔥 RANGO DEL DÍA (SOLUCIÓN ZONA HORARIA)
     hoy = localdate()
 
+    inicio, fin = rango_dia(hoy)
     ventas = Venta.objects.filter(
-        fecha__date=hoy,
+        fecha__gte=inicio,
+        fecha__lt=fin,
         estado="COMPLETADA",
     )
 
@@ -52,7 +55,7 @@ def estadisticas(request):
 
     # ⚠ STOCK BAJO (CANTIDAD)
     stock_bajo = Producto.objects.filter(
-        stock__lte=F('stock_minimo')
+        stock__lte=F('stock_minimo'), activo=True
     ).count()
 
     return Response({
@@ -75,7 +78,7 @@ def estadisticas(request):
 def alertas_stock(request):
 
     productos = Producto.objects.filter(
-        stock__lte=F('stock_minimo')
+        stock__lte=F('stock_minimo'), activo=True
     )
 
     data = []

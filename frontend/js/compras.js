@@ -3,6 +3,7 @@ let total = 0
 
 const API = window.API_BASE_URL
 const token = localStorage.getItem("token")
+const cuentasPorPagarPorCompra = new Map()
 const escapeHtml = window.escapeHtml
 const detallesDeCompra = new Map()
 
@@ -341,9 +342,24 @@ tabla.innerHTML += `
 `
 })
 
-document.getElementById("totalCompra").innerText = total.toLocaleString()
+actualizarTotalCompra()
 
 }
+
+function valorImporte(id){
+    const valor = Number(document.getElementById(id)?.value || 0)
+    return Number.isFinite(valor) && valor > 0 ? valor : 0
+}
+
+function actualizarTotalCompra(){
+    const elemento = document.getElementById("totalCompra")
+    if(!elemento) return
+    const final = total + valorImporte("impuesto") - valorImporte("descuento")
+    elemento.innerText = Math.max(final, 0).toLocaleString("es-PY")
+}
+
+document.getElementById("descuento")?.addEventListener("input", actualizarTotalCompra)
+document.getElementById("impuesto")?.addEventListener("input", actualizarTotalCompra)
 
 
 /* ======================
@@ -402,6 +418,25 @@ function guardarCompra(){
         return
     }
 
+    const credito = metodo_pago === "CREDITO"
+
+    if(credito && !fecha_vencimiento){
+
+        alert("Indica la fecha de vencimiento de la compra a crédito")
+
+        return
+    }
+
+    const descuento = valorImporte("descuento")
+    const impuesto = valorImporte("impuesto")
+
+    if(descuento > total + impuesto){
+
+        alert("El descuento no puede superar el total de la compra")
+
+        return
+    }
+
     fetch(`${API}/compras/`,{
 
         method:"POST",
@@ -419,10 +454,13 @@ function guardarCompra(){
 
             metodo_pago,
 
-            credito:
-            metodo_pago === "CREDITO",
+            credito,
 
-            fecha_vencimiento,
+            fecha_vencimiento: credito ? fecha_vencimiento : null,
+
+            descuento,
+
+            impuesto,
 
             observacion,
 
@@ -478,13 +516,22 @@ function cargarCompras(){
 
     if (!document.getElementById("tablaCompras")) return
 
-    fetch(`${API}/compras/historial/`,{
-        headers:{
-            "Authorization": "Bearer " + token
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
+    const authHeaders = { "Authorization": "Bearer " + token }
+
+    Promise.all([
+        fetch(`${API}/compras/historial/`, { headers: authHeaders }).then(async res => {
+            const data = await res.json()
+            if(!res.ok) throw new Error(data.error || data.detail || "No se pudo cargar el historial")
+            return data
+        }),
+        fetch(`${API}/finanzas/cuentas-por-pagar/?pendientes=1`, { headers: authHeaders })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => [])
+    ])
+    .then(([data, cuentas]) => {
+
+        cuentasPorPagarPorCompra.clear()
+        cuentas.forEach(cuenta => cuentasPorPagarPorCompra.set(Number(cuenta.compra_id), cuenta))
 
         const tabla = document.getElementById("tablaCompras")
         tabla.innerHTML = ""
@@ -554,6 +601,13 @@ function cargarCompras(){
                 <td>${c.estado}</td>
                 <td>Gs. ${Number(c.total).toLocaleString("es-PY")}</td>
                 <td class="acciones-compra">
+                    ${cuentasPorPagarPorCompra.has(Number(c.id)) ? `
+                    <button type="button" class="btn-icon btn-pagar-compra"
+                        title="Registrar pago al proveedor (saldo Gs. ${Number(cuentasPorPagarPorCompra.get(Number(c.id)).saldo).toLocaleString("es-PY")})"
+                        aria-label="Registrar pago de la compra ${c.id}"
+                        onclick="pagarCompra(${Number(c.id)})">
+                        <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                    </button>` : ""}
                     <button type="button" class="btn-icon btn-ver-compra"
                         title="Ver detalle" aria-label="Ver detalle de compra ${c.id}"
                         onclick="verDetalleCompra(${Number(c.id)})">
@@ -789,3 +843,54 @@ async function guardarProducto() {
 
 
 
+
+
+/* ======================
+PAGO A PROVEEDOR (COMPRAS A CRÉDITO)
+====================== */
+
+
+async function pagarCompra(compraId){
+
+    const cuenta = cuentasPorPagarPorCompra.get(Number(compraId))
+    if(!cuenta) return
+
+    const respuesta = prompt(
+        `Pago a ${cuenta.proveedor} - Compra #${compraId}
+` +
+        `Saldo pendiente: Gs. ${Number(cuenta.saldo).toLocaleString("es-PY")}
+
+` +
+        "Monto a pagar (Gs.):",
+        String(Math.round(cuenta.saldo))
+    )
+    if(respuesta === null) return
+
+    const monto = Number(String(respuesta).replace(/\./g, "").replace(",", ".").trim())
+    if(!Number.isFinite(monto) || monto <= 0){
+        alert("Monto inválido")
+        return
+    }
+    if(monto > cuenta.saldo){
+        alert("El pago supera el saldo pendiente")
+        return
+    }
+
+    try{
+        const res = await fetch(`${API}/finanzas/cuentas-por-pagar/${encodeURIComponent(cuenta.id)}/pagar/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify({ monto })
+        })
+        const data = await res.json()
+        if(!res.ok) throw new Error(data.error || data.detail || "No se pudo registrar el pago")
+        alert(data.cuenta.pagado ? "Compra pagada por completo" : `Pago registrado. Saldo: Gs. ${Number(data.cuenta.saldo).toLocaleString("es-PY")}`)
+        cargarCompras()
+    }catch(error){
+        console.error(error)
+        alert(error.message)
+    }
+}

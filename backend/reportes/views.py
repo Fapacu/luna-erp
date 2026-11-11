@@ -1,3 +1,4 @@
+from config.fechas import rango_dia, rango_mes, totales_por_dia
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,7 +8,7 @@ from finanzas.models import MovimientoFinanciero
 from ventas.models import Venta, DetalleVenta
 from compras.models import Compra
 from django.db.models import Sum
-from django.utils.timezone import now,make_aware
+from django.utils.timezone import now, make_aware, localdate
 from django.db import models
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -30,7 +31,7 @@ def dashboard_financiero(request):
         total=Sum('total')
     )['total'] or 0
 
-    compras_total = Compra.objects.aggregate(
+    compras_total = Compra.objects.exclude(estado='ANULADA').aggregate(
         total=Sum('total')
     )['total'] or 0
 
@@ -48,7 +49,9 @@ def dashboard_financiero(request):
         margen = (ganancia_total / ventas_total) * 100
 
 
-    top_productos = DetalleVenta.objects.values(
+    top_productos = DetalleVenta.objects.filter(
+        venta__estado='COMPLETADA'
+    ).values(
         'producto__nombre'
     ).annotate(
         ganancia_total=Sum('ganancia')
@@ -81,10 +84,11 @@ def dashboard_data(request):
     if not request.user.is_staff and rol not in ['ADMIN', 'GERENTE']:
         raise PermissionDenied("No tienes permiso")
 
-    hoy = now().date()
+    inicio, fin = rango_dia(localdate())
 
     ventas_hoy = Venta.objects.filter(
-        fecha__date=hoy,
+        fecha__gte=inicio,
+        fecha__lt=fin,
         estado='COMPLETADA'
     )
 
@@ -95,8 +99,7 @@ def dashboard_data(request):
     transferencia = ventas_hoy.filter(metodo_pago='TRANSFERENCIA').aggregate(total=Sum('total'))['total'] or 0
 
     productos_hoy = DetalleVenta.objects.filter(
-        venta__fecha__date=hoy,
-        venta__estado="COMPLETADA",
+        venta__in=ventas_hoy,
     ).aggregate(total=Sum('cantidad'))['total'] or 0
 
     cajas_abiertas = Caja.objects.filter(abierta=True)
@@ -136,9 +139,14 @@ def productos_mas_vendidos(request):
     if not mes or not anio:
         return Response({"error": "Debe enviar mes y año"}, status=400)
 
+    try:
+        inicio, fin = rango_mes(int(anio), int(mes))
+    except (TypeError, ValueError):
+        return Response({"error": "Mes o año inválido"}, status=400)
+
     ventas = DetalleVenta.objects.filter(
-        venta__fecha__month=mes,
-        venta__fecha__year=anio,
+        venta__fecha__gte=inicio,
+        venta__fecha__lt=fin,
         venta__estado="COMPLETADA",
     )
 
@@ -298,16 +306,14 @@ def dashboard_reporte(request):
     ]
 
     # 📈 VENTAS POR DÍA
-    ventas_por_dia = ventas.values('fecha__date') \
-        .annotate(total=Sum('total')) \
-        .order_by('fecha__date')
+    ventas_por_dia = totales_por_dia(ventas)
 
     grafico_linea = [
         {
-            "fecha": str(v["fecha__date"]),
-            "total": v["total"]
+            "fecha": dia.isoformat(),
+            "total": float(total)
         }
-        for v in ventas_por_dia
+        for dia, total in ventas_por_dia
     ]
 
     # 💳 MÉTODOS DE PAGO
@@ -322,7 +328,7 @@ def dashboard_reporte(request):
     ).order_by('-total')[:5]
 
     # 🧠 PREDICCIÓN (POR DÍA)
-    ventas_por_dia_totales = [v["total"] for v in ventas_por_dia]
+    ventas_por_dia_totales = [total for _, total in ventas_por_dia]
 
     prediccion = 0
     if ventas_por_dia_totales:
@@ -331,7 +337,7 @@ def dashboard_reporte(request):
 
     # 📦 ALERTAS STOCK
     alertas = Producto.objects.filter(
-        stock__lte=models.F('stock_minimo')
+        stock__lte=models.F('stock_minimo'), activo=True
     ).values('nombre', 'stock')
 
     return Response({
@@ -366,7 +372,7 @@ def dashboard_reporte(request):
 def alertas_stock(request):
 
     productos = Producto.objects.filter(
-        stock__lte=models.F('stock_minimo')
+        stock__lte=models.F('stock_minimo'), activo=True
     )
 
     return Response(list(productos.values(

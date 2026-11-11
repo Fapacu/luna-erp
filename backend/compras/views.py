@@ -1,3 +1,5 @@
+from datetime import date
+from django.utils import timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.db import transaction
@@ -14,6 +16,43 @@ from inventario.models import Producto
 from inventario.services import registrar_movimiento
 
 from .models import Compra, DetalleCompra, Proveedor
+
+
+def _ids_productos(valor):
+    """Valida una lista de IDs de producto; devuelve lista de int o None."""
+    if valor is None:
+        return []
+    if not isinstance(valor, list):
+        return None
+    ids = []
+    for item in valor:
+        try:
+            ids.append(int(item))
+        except (TypeError, ValueError):
+            return None
+    return ids
+
+
+def _texto(valor, limite, obligatorio=False):
+    """Normaliza un texto opcional; lanza ValueError si no es válido."""
+    if valor is None:
+        valor = ""
+    if not isinstance(valor, str):
+        raise ValueError
+    valor = valor.strip()
+    if len(valor) > limite or (obligatorio and not valor):
+        raise ValueError
+    return valor
+
+
+def _decimal_no_negativo(valor):
+    try:
+        numero = Decimal(str(valor if valor not in (None, "") else "0"))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError
+    if not numero.is_finite() or numero < 0 or numero.as_tuple().exponent < -2:
+        raise ValueError
+    return numero
 
 
 # =========================================
@@ -80,30 +119,24 @@ def listar_proveedores(request):
 
         data = request.data
 
-        nombre = data.get("nombre")
-        telefono = data.get("telefono", "")
-        productos_ids = data.get("productos", [])
+        try:
+            nombre = _texto(data.get("nombre"), 100, obligatorio=True)
+        except ValueError:
+            return Response({"error": "Nombre requerido (máximo 100 caracteres)."}, status=400)
+        try:
+            telefono = _texto(data.get("telefono"), 20)
+        except ValueError:
+            return Response({"error": "Teléfono inválido (máximo 20 caracteres)."}, status=400)
+        productos_ids = _ids_productos(data.get("productos", []))
+        if productos_ids is None:
+            return Response({"error": "La lista de productos no es válida."}, status=400)
 
-        if not nombre:
-
-            return Response({
-
-                "error": "Nombre requerido"
-
-            }, status=400)
-
-        proveedor = Proveedor.objects.create(
-
-            nombre=nombre,
-            telefono=telefono
-
-        )
-
-        productos = Producto.objects.filter(
-            id__in=productos_ids
-        )
-
-        proveedor.productos.set(productos)
+        with transaction.atomic():
+            proveedor = Proveedor.objects.create(
+                nombre=nombre,
+                telefono=telefono
+            )
+            proveedor.productos.set(Producto.objects.filter(id__in=productos_ids))
 
         return Response({
 
@@ -187,42 +220,22 @@ def actualizar_proveedor(request, id):
 
     data = request.data
 
-    p.nombre = data.get(
-        "nombre",
-        p.nombre
-    )
+    try:
+        if "nombre" in data:
+            p.nombre = _texto(data.get("nombre"), 100, obligatorio=True)
+        if "telefono" in data:
+            p.telefono = _texto(data.get("telefono"), 20)
+    except ValueError:
+        return Response({"error": "Nombre (máx. 100) o teléfono (máx. 20) inválido."}, status=400)
 
-    p.telefono = data.get(
-        "telefono",
-        p.telefono
-    )
+    productos_ids = _ids_productos(data.get("productos")) if "productos" in data else None
+    if "productos" in data and productos_ids is None:
+        return Response({"error": "La lista de productos no es válida."}, status=400)
 
-    if hasattr(p, 'direccion'):
-
-        p.direccion = data.get(
-            "direccion",
-            p.direccion
-        )
-
-    if hasattr(p, 'ruc'):
-
-        p.ruc = data.get(
-            "ruc",
-            p.ruc
-        )
-
-    productos_ids = data.get(
-        "productos",
-        []
-    )
-
-    productos = Producto.objects.filter(
-        id__in=productos_ids
-    )
-
-    p.productos.set(productos)
-
-    p.save()
+    with transaction.atomic():
+        p.save()
+        if productos_ids is not None:
+            p.productos.set(Producto.objects.filter(id__in=productos_ids))
 
     return Response({
 
@@ -286,7 +299,7 @@ def crear_compra(request):
             "error": "Seleccione un proveedor"
         }, status=400)
 
-    if not items:
+    if not items or not isinstance(items, list):
         return Response({
             "error": "No hay productos"
         }, status=400)
@@ -294,13 +307,26 @@ def crear_compra(request):
     credito = data.get("credito", False)
     if not isinstance(credito, bool):
         return Response({"error": "El campo crédito debe ser verdadero o falso."}, status=400)
-    if credito and not data.get("fecha_vencimiento"):
-        return Response({"error": "Indique la fecha de vencimiento para una compra a crédito."}, status=400)
 
-    numero_factura = data.get("numero_factura")
+    fecha_vencimiento = None
+    if credito:
+        try:
+            fecha_vencimiento = date.fromisoformat(str(data.get("fecha_vencimiento") or "").strip())
+        except ValueError:
+            return Response({"error": "Indique una fecha de vencimiento válida para una compra a crédito."}, status=400)
 
-    if not numero_factura:
-        numero_factura = None
+    try:
+        numero_factura = _texto(data.get("numero_factura"), 100) or None
+        metodo_pago = _texto(data.get("metodo_pago") or "efectivo", 50)
+        observacion = _texto(data.get("observacion"), 2000)
+    except ValueError:
+        return Response({"error": "Número de factura, método de pago u observación inválidos."}, status=400)
+
+    try:
+        descuento = _decimal_no_negativo(data.get("descuento"))
+        impuesto = _decimal_no_negativo(data.get("impuesto"))
+    except ValueError:
+        return Response({"error": "Descuento e impuesto deben ser importes válidos no negativos."}, status=400)
 
     if numero_factura and Compra.objects.filter(
         numero_factura=numero_factura
@@ -329,11 +355,17 @@ def crear_compra(request):
 
     for item in items:
 
+        if not isinstance(item, dict):
+            return Response({"error": "Detalle de compra inválido."}, status=400)
+
         try:
 
             producto = Producto.objects.select_for_update().get(
-                id=item["producto"], activo=True
+                id=int(item["producto"]), activo=True
             )
+
+        except (KeyError, TypeError, ValueError):
+            return Response({"error": "Detalle de compra inválido."}, status=400)
 
         except Producto.DoesNotExist:
 
@@ -384,6 +416,9 @@ def crear_compra(request):
 
         })
 
+    if descuento > total + impuesto:
+        return Response({"error": "El descuento no puede superar el total de la compra."}, status=400)
+
     # =====================================
     # CREAR COMPRA
     # =====================================
@@ -398,23 +433,15 @@ def crear_compra(request):
 
             numero_factura=numero_factura,
 
-            metodo_pago=data.get(
-                "metodo_pago",
-                "efectivo"
-            ),
+            metodo_pago=metodo_pago,
 
             estado="PENDIENTE" if credito else "PAGADA",
 
             credito=credito,
 
-            fecha_vencimiento=data.get(
-                "fecha_vencimiento"
-            ),
+            fecha_vencimiento=fecha_vencimiento,
 
-            observacion=data.get(
-                "observacion",
-                ""
-            )
+            observacion=observacion
 
         )
 
@@ -462,7 +489,7 @@ def crear_compra(request):
 
                 usuario=request.user,
 
-                motivo="Compra proveedor"
+                motivo=f"Compra #{compra.id}" + (f" - Factura {numero_factura}" if numero_factura else "")
 
             )
 
@@ -470,11 +497,13 @@ def crear_compra(request):
         # TOTALES
         # =================================
 
+        # Los costos se cargan tal como figuran en la factura. El impuesto y el
+        # descuento adicionales solo se aplican si el usuario los informa.
         compra.subtotal = total
 
-        compra.impuesto = (
-            total * Decimal("0.10")
-        )
+        compra.impuesto = impuesto
+
+        compra.descuento = descuento
 
         compra.total = (
             compra.subtotal
@@ -526,6 +555,13 @@ def crear_compra(request):
 
         )
 
+        from auditoria.services import registrar_auditoria
+        registrar_auditoria(
+            usuario=request.user, modulo="COMPRAS", accion="CREAR_COMPRA",
+            referencia=f"Compra #{compra.id}",
+            detalle=f"Proveedor: {proveedor.nombre}; total: {compra.total}; crédito: {credito}",
+        )
+
     except Exception:
         import logging
         logging.getLogger(__name__).exception("No se pudo registrar la compra")
@@ -555,8 +591,11 @@ def crear_compra(request):
 @permission_classes([IsAuthenticated])
 
 def listar_compras(request):
+    requiere_roles(request.user, "ADMIN", "GERENTE")
 
-    compras = Compra.objects.all().order_by('-id')
+    compras = Compra.objects.select_related("proveedor").prefetch_related(
+        "detallecompra_set__producto"
+    ).order_by('-id')
 
     data = []
 
@@ -569,7 +608,7 @@ def listar_compras(request):
             "proveedor": c.proveedor.nombre,
 
             "fecha":
-            c.fecha.strftime(
+            timezone.localtime(c.fecha).strftime(
                 "%Y-%m-%d %H:%M"
             ),
 
@@ -605,7 +644,7 @@ def listar_compras(request):
                     d.producto.nombre,
 
                     "cantidad":
-                    d.cantidad,
+                    float(d.cantidad),
 
                     "costo":
                     float(d.precio_compra),

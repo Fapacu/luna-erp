@@ -6,7 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from auditoria.services import registrar_auditoria
 from .models import Role, UsuarioPerfil
-from .permissions import requiere_roles
+from .permissions import requiere_roles, obtener_rol
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -14,10 +14,7 @@ def usuario_actual(request):
 
     user = request.user
 
-    try:
-        rol = user.usuarioperfil.role.nombre
-    except:
-        rol = ""
+    rol = obtener_rol(user) or ""
 
     return Response({
         "id": user.id,
@@ -26,12 +23,6 @@ def usuario_actual(request):
         "rol": rol
     })
 
-
-def es_admin(user):
-    try:
-        return user.is_staff or user.usuarioperfil.role.nombre == "ADMIN"
-    except:
-        return False
 
 def cantidad_administradores():
 
@@ -94,15 +85,22 @@ def crear_usuario(request):
     username = request.data.get("username", "")
     username = username.strip() if isinstance(username, str) else ""
     password = request.data.get("password", "")
-    email = request.data.get("email", "").strip()
+    email = request.data.get("email") or ""
+    email = email.strip() if isinstance(email, str) else ""
     role_id = request.data.get("role_id")
 
     # Validaciones
-    if not username or not password:
+    if not username or not isinstance(password, str) or not password:
         return Response(
             {"error": "Usuario y contraseña son obligatorios"},
             status=400
         )
+
+    if len(username) > 150:
+        return Response({"error": "El nombre de usuario es demasiado largo."}, status=400)
+
+    if len(password) < 8:
+        return Response({"error": "La contraseña debe tener al menos 8 caracteres."}, status=400)
 
     # Verificar usuario duplicado
     if User.objects.filter(username=username).exists():
@@ -114,8 +112,8 @@ def crear_usuario(request):
     # Validar rol
     try:
         role = Role.objects.get(id=role_id)
-        
-    except Role.DoesNotExist:
+
+    except (Role.DoesNotExist, ValueError, TypeError):
         return Response(
             {"error": "Rol inválido"},
             status=400
@@ -129,18 +127,16 @@ def crear_usuario(request):
             status=400
         )
 
-    # Crear usuario
-    user = User.objects.create_user(
-        username=username,
-        password=password,
-        email=email
-    )
-
-    # Crear perfil
-    UsuarioPerfil.objects.create(
-        user=user,
-        role=role
-    )
+    with transaction.atomic():
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email
+        )
+        UsuarioPerfil.objects.create(
+            user=user,
+            role=role
+        )
 
     # Auditoría
     registrar_auditoria(
@@ -197,7 +193,7 @@ def editar_usuario(request, user_id):
     # Validar rol
     try:
         role = Role.objects.get(id=role_id)
-    except Role.DoesNotExist:
+    except (Role.DoesNotExist, ValueError, TypeError):
         return Response({"error": "Rol inválido"}, status=400)
 
     if role.nombre not in ["ADMIN", "GERENTE", "CAJERO"]:
@@ -206,8 +202,10 @@ def editar_usuario(request, user_id):
             status=400
         )
 
-    perfil, _ = UsuarioPerfil.objects.select_for_update().get_or_create(user=user)
+    perfil, _ = UsuarioPerfil.objects.select_for_update().get_or_create(user=user, defaults={"role": role})
     era_admin_activo = perfil.role.nombre == "ADMIN" and user.is_active
+    if user.id == request.user.id and not is_active:
+        return Response({"error": "No puedes desactivar tu propia cuenta."}, status=400)
     if era_admin_activo and (role.nombre != "ADMIN" or not is_active) and cantidad_administradores() <= 1:
         return Response({"error": "No puedes cambiar el rol ni desactivar al último administrador activo."}, status=400)
 
@@ -243,7 +241,7 @@ def cambiar_password(request, user_id):
 
     try:
         user = User.objects.get(id=user_id)
-    except:
+    except User.DoesNotExist:
         return Response({"error": "Usuario no encontrado"}, status=404)
 
     nueva = request.data.get("password")
@@ -278,6 +276,9 @@ def eliminar_usuario(request, user_id):
         return Response({
             "error": "Usuario no encontrado"
         }, status=404)
+
+    if user.id == request.user.id:
+        return Response({"error": "No puedes desactivar tu propia cuenta."}, status=400)
 
     try:
         perfil = UsuarioPerfil.objects.select_related("role").get(user=user)

@@ -156,9 +156,32 @@
     transform:translateY(-1px);
 }
 
-.btn-icon.btn-ver-compra i{
+.btn-icon.btn-ver-compra i,
+.btn-icon.btn-pagar-compra i{
     font-size:16px;
     line-height:1;
+}
+
+.btn-icon.btn-pagar-compra{
+    width:36px;
+    height:36px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    margin-right:4px;
+    border:1px solid #bbf7d0;
+    border-radius:8px;
+    background:#f0fdf4;
+    color:#16a34a;
+    cursor:pointer;
+    transition:background-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.btn-icon.btn-pagar-compra:hover{
+    background:#16a34a;
+    color:#fff;
+    transform:translateY(-1px);
 }
 
 .card-header small{

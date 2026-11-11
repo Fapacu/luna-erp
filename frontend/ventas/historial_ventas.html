@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Luna ERP | Historial de ventas</title>
+
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../css/pages/libreta.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        .filtros-ventas { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+        .filtros-ventas label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4b5563; }
+        .filtros-ventas input, .filtros-ventas select {
+            padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; min-width: 140px;
+        }
+        .filtros-ventas button {
+            padding: 10px 16px; border: none; border-radius: 8px; background: #2563eb; color: #fff;
+            font-weight: 600; cursor: pointer;
+        }
+        .estado-venta { font-weight: 700; font-size: 12px; padding: 3px 8px; border-radius: 999px; }
+        .estado-COMPLETADA { background: #dcfce7; color: #166534; }
+        .estado-ANULADA { background: #fee2e2; color: #991b1b; }
+        .acciones-venta { display: flex; gap: 6px; justify-content: center; }
+        .acciones-venta button {
+            width: 34px; height: 34px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff;
+            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        }
+        .acciones-venta .btn-anular { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+        .acciones-venta .btn-ticket { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+        .vacio { text-align: center; color: #6b7280; padding: 24px; }
+    </style>
+
+    <script src="../js/api-config.js"></script>
+</head>
+
+<body>
+
+<div id="sidebar-container"></div>
+
+<main class="main">
+
+<section class="page">
+
+    <div class="page-header">
+        <div>
+            <h1><i class="bi bi-receipt"></i> Historial de ventas</h1>
+            <p>Consulte ventas, reimprima tickets y anule ventas (administración).</p>
+        </div>
+    </div>
+
+    <div class="grid-kpis">
+        <div class="kpi-card">
+            <div class="kpi-icon"><i class="bi bi-receipt-cutoff"></i></div>
+            <div><span>Ventas completadas</span><h2 id="kpiCantidad">0</h2></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon verde"><i class="bi bi-cash-stack"></i></div>
+            <div><span>Total vendido</span><h2 id="kpiTotal">Gs. 0</h2></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon naranja"><i class="bi bi-x-octagon"></i></div>
+            <div><span>Anuladas</span><h2 id="kpiAnuladas">0</h2></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <form class="filtros-ventas" id="filtrosVentas">
+                <label>Desde <input type="date" id="filtroDesde"></label>
+                <label>Hasta <input type="date" id="filtroHasta"></label>
+                <label>Ticket o N.º <input type="search" id="filtroTexto" placeholder="TICKET-000123"></label>
+                <label>Estado
+                    <select id="filtroEstado">
+                        <option value="">Todos</option>
+                        <option value="COMPLETADA">Completadas</option>
+                        <option value="ANULADA">Anuladas</option>
+                    </select>
+                </label>
+                <button type="submit"><i class="bi bi-search"></i> Buscar</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <table class="tabla-libreta">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Fecha</th>
+                        <th>Cajero</th>
+                        <th>Caja</th>
+                        <th>Pago</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaVentas">
+                    <tr><td colspan="8" class="vacio">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
+
+</main>
+
+<script>
+const BASE_PATH = "../";
+</script>
+<script src="../js/sidebar.js"></script>
+<script>
+cargarSidebar();
+</script>
+<script src="../js/historial_ventas.js"></script>
+<script src="../js/enter-navigation.js"></script>
+<script src="../js/responsive-tables.js"></script>
+
+</body>
+
+</html>

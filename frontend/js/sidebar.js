@@ -30,7 +30,8 @@ function iconoSidebar(nombre) {
         "bi-cart-check": '<circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M2 3h2l2.5 12h12L21 7H5"/><path d="m10 10 2 2 4-4"/>',
         "bi-truck": '<path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="17.5" cy="19" r="1.5"/>',
         "bi-cash-stack": '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 6V4h14v13h-3M12 10a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM3 10h2m-2 5h2"/>',
-        "bi-journal-text": '<path d="M5 3h14v18H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M7 7h8M7 11h10M7 15h8M7 3v18"/>',
+        "bi-receipt": '<path d="M5 3h14v18l-2.3-1.5L14.3 21 12 19.5 9.7 21l-2.4-1.5L5 21V3Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+        "bi-journal-text":'<path d="M5 3h14v18H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M7 7h8M7 11h10M7 15h8M7 3v18"/>',
         "bi-bar-chart": '<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7M2 20h20"/>',
         "bi-wallet2": '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 14h2"/>',
         "bi-person-gear": '<circle cx="10" cy="8" r="3"/><path d="M4 20v-2a6 6 0 0 1 9-5.2M17 14l.6 1.2 1.3.2-.9 1 .2 1.3-1.2-.6-1.2.6.2-1.3-.9-1 1.3-.2L17 14Z"/>',
@@ -96,6 +97,13 @@ function cargarSidebar() {
             texto: "Caja",
             icono: "bi-cash-stack",
             url: "ventas/caja.html",
+            roles: ["ADMIN", "GERENTE", "CAJERO"]
+        },
+
+        {
+            texto: "Historial de ventas",
+            icono: "bi-receipt",
+            url: "ventas/historial_ventas.html",
             roles: ["ADMIN", "GERENTE", "CAJERO"]
         },
 

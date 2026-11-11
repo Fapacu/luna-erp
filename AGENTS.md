@@ -20,7 +20,7 @@ Sistema web de gestión para un minimercado en Paraguay. Incluye ventas de mostr
 | Base de datos | MySQL (`minimercado`, conexión local configurada en `backend/config/settings.py`) |
 | Dependencias Python | `backend/requirements.txt` |
 
-No hay `package.json`, empaquetador frontend ni configuración de TypeScript. Hay una suite de pruebas Django en `tests/test_erp_flows.py`; se ejecuta con `config.settings_test`, aislada de MySQL mediante SQLite en memoria.
+No hay `package.json`, empaquetador frontend ni configuración de TypeScript. Hay una suite de pruebas Django en `tests/` (`test_erp_flows.py`, `test_regresiones.py`); se ejecuta con `config.settings_test`, aislada de MySQL mediante SQLite en memoria, y el runner `config.test_runner.RepoTestRunner` la descubre sin indicar rutas.
 
 ## 3. Puesta en marcha y comprobaciones
 
@@ -91,6 +91,11 @@ Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py`, `servic
 - El borrado de productos es archivado lógico (`activo=False`) para conservar ventas, compras y movimientos históricos; solo ADMIN/GERENTE pueden consultar archivados o reactivarlos.
 - El POS permite varias ventas en espera. Sus carritos y datos asociados se guardan por usuario en el almacenamiento local del navegador; no son borradores compartidos entre dispositivos.
 - Las pantallas web se adaptan a móvil. Para entrar desde un teléfono, sirve `frontend/` en una dirección accesible por la red local o HTTPS y usa un API accesible desde ese dispositivo.
+- No uses lookups `__date`, `__month`, `__year` ni `TruncDate` sobre campos de fecha y hora: la base MariaDB de producción no tiene cargadas las tablas de zona horaria y esas consultas devuelven vacío sin error. Usa `config/fechas.py` (`rango_dia`, `filtrar_rango`, `rango_mes`, `totales_por_dia`) y formatea fechas con `timezone.localtime(...)`.
+- Retiros y gastos de caja no pueden superar el efectivo disponible (`efectivo_en_caja`). Una venta sin `caja_id` solo usa una caja abierta del propio usuario.
+- Los productos con unidad distinta de `kg`, `g`, `lt` o `l` se venden en cantidades enteras.
+- Una venta por libreta solo se anula si el saldo pendiente de la cuenta cubre su importe; deja un `MovimientoLibreta` de tipo `ANULACION`.
+- Las compras registran los costos tal como figuran en la factura; impuesto y descuento solo se aplican si se informan. Las compras a crédito se saldan con `finanzas/cuentas-por-pagar/<id>/pagar/`.
 - Las migraciones se guardan en la app correspondiente. No edites migraciones ya aplicadas en una base compartida; crea una migración nueva y revisa el SQL generado.
 - Al cambiar un modelo, crea y revisa la migración antes de aplicar `migrate`.
 
@@ -111,6 +116,7 @@ Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py`, `servic
 - Los importes y fechas deben ser legibles para el personal del minimercado y coherentes con Paraguay.
 - Escapa o inserta texto de usuario de forma segura. Evita interpolar nombres, búsquedas y otros datos sin confianza directamente en `innerHTML` o atributos `onclick`.
 - Las llamadas autenticadas deben adjuntar el token según el patrón existente. No guardes contraseñas ni secretos en `localStorage`.
+- Los montos que el usuario escribe como texto (por ejemplo en `prompt`) se interpretan con `window.parseMontoGs`, que toma el punto como separador de miles ("150.000" = 150000).
 - La base URL del API se centraliza en `frontend/js/api-config.js`. Usa `window.apiUrl()` o `window.API_BASE_URL`; no agregues hosts fijos a nuevos scripts. En despliegues con otro origen, configura `window.ERP_API_BASE_URL` o la meta `api-base-url` antes de cargar esa configuración.
 - Si agregas una pantalla o acción, revisa navegación, permisos de menú, estados vacíos, errores de red y accesibilidad básica (labels, botones y foco).
 
@@ -131,9 +137,9 @@ El estado indica que hay código, no que el módulo haya pasado una validación 
 |---|---|---|
 | Usuarios y acceso | `backend/usuarios`, `frontend/login.html`, `frontend/usuarios.html` | Implementado; revisión de permisos y autenticación cubierta parcialmente por pruebas backend |
 | Productos e inventario | `backend/inventario`, `frontend/inventario`, `frontend/js/productos.js` | Productos, stock, movimientos y alertas; CRUD y ajustes cubiertos parcialmente por pruebas backend |
-| Ventas y caja | `backend/ventas`, `frontend/ventas/caja.html` | POS responsivo, varias ventas en espera y cajas abiertas; los carritos quedan locales al navegador. Flujos de caja y venta cubiertos parcialmente por pruebas; falta carga concurrente de producción |
+| Ventas y caja | `backend/ventas`, `frontend/ventas/caja.html`, `frontend/ventas/historial_ventas.html` | POS responsivo, varias ventas en espera, cajas abiertas, impresión de ticket, historial con reimpresión y anulación (ADMIN/GERENTE). Flujos cubiertos por pruebas y E2E; falta carga concurrente de producción |
 | Clientes y libreta | `backend/ventas`, `frontend/ventas/libreta.html` | Cuentas por cobrar y pagos; validar saldos y auditoría de cobros |
-| Compras y proveedores | `backend/compras`, `frontend/compras/registrar_compra.html`, `frontend/compras/compras.html` | Registro de compras separado de la consulta de compras realizadas; compras contado/crédito cubiertas parcialmente; validar pagos e impuestos con reglas reales del negocio |
+| Compras y proveedores | `backend/compras`, `frontend/compras/registrar_compra.html`, `frontend/compras/compras.html` | Registro y consulta separados; compras contado/crédito y pagos a proveedor (cuentas por pagar) cubiertos por pruebas; validar IVA 5 %/10 % con el contador si se requiere desglose fiscal |
 | Finanzas | `backend/finanzas`, `frontend/finanzas.html` | Movimientos financieros; validar conciliación con ventas y compras |
 | Dashboard | `backend/dashboard`, `frontend/dashboard.html` | Indicadores y alertas; validar filtros, estados y totales |
 | Reportes | `backend/reportes`, `frontend/reportes.html` | Consultas y PDF; cotejar cada total con datos fuente |

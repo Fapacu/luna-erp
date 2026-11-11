@@ -296,9 +296,9 @@ function confirmarCantidad(){
         ).value
     )
 
-    if(!cantidad || cantidad <= 0){
+    if(!cantidad || cantidad <= 0 || redondearCantidad(cantidad) <= 0){
 
-        alert("Cantidad inválida")
+        alert("Cantidad inválida (hasta 3 decimales, por ejemplo 0,250 kg)")
 
         return
     }
@@ -330,7 +330,13 @@ function cerrarModalCantidad(){
 AGREGAR PRODUCTO
 ====================== */
 
+function redondearCantidad(valor){
+    return Math.round(Number(valor) * 1000) / 1000
+}
+
 function agregarProducto(p, cantidad){
+
+    cantidad = redondearCantidad(cantidad)
 
     let existente = carrito.find(
         item => item.id === p.id
@@ -338,11 +344,12 @@ function agregarProducto(p, cantidad){
 
     if(existente){
 
-        existente.cantidad += cantidad
+        existente.cantidad = redondearCantidad(existente.cantidad + cantidad)
 
-        existente.total =
-        existente.cantidad *
-        existente.precio
+        existente.total = Math.round(
+            existente.cantidad *
+            existente.precio
+        )
 
     }else{
 
@@ -358,10 +365,11 @@ function agregarProducto(p, cantidad){
 
             cantidad: cantidad,
 
-            total:
-            parseFloat(
-                p.precio_venta
-            ) * cantidad,
+            total: Math.round(
+                parseFloat(
+                    p.precio_venta
+                ) * cantidad
+            ),
 
             unidad: p.unidad
         })
@@ -465,7 +473,7 @@ CANTIDAD
 
 function cambiarCantidad(index, cambio){
 
-    carrito[index].cantidad += cambio
+    carrito[index].cantidad = redondearCantidad(carrito[index].cantidad + cambio)
 
     if(carrito[index].cantidad <= 0){
 
@@ -473,9 +481,10 @@ function cambiarCantidad(index, cambio){
 
     }else{
 
-        carrito[index].total =
-        carrito[index].cantidad *
-        carrito[index].precio
+        carrito[index].total = Math.round(
+            carrito[index].cantidad *
+            carrito[index].precio
+        )
     }
 
     calcularTotal()
@@ -676,9 +685,18 @@ function finalizarVenta(){
 
         cobroEnProceso = false
 
-        alert(
-            "Venta realizada"
+        const imprimir = confirm(
+            `Venta realizada (${data.ticket}).
+` +
+            `Total: Gs. ${Number(data.total).toLocaleString('es-PY')}
+
+` +
+            "¿Imprimir ticket?"
         )
+
+        if(imprimir){
+            imprimirTicket(data.venta_id)
+        }
 
         completarVentaActiva()
 
@@ -997,10 +1015,17 @@ ABRIR CAJA
 
 function abrirCaja(){
 
-    const monto =
-    prompt("Ingrese monto inicial");
+    const texto =
+    prompt("Ingrese monto inicial (Gs.)");
 
-    if(!monto) return;
+    if(texto === null) return;
+
+    const monto = window.parseMontoGs(texto)
+
+    if(!Number.isFinite(monto) || monto < 0){
+        alert("Monto inválido. Ejemplo: 150.000")
+        return
+    }
 
     fetch(
 
@@ -1058,12 +1083,19 @@ CERRAR CAJA
 
 function cerrarCaja(){
 
-    const montoReal =
+    const textoContado =
     prompt(
-        "Ingrese dinero contado en caja"
+        "Ingrese dinero contado en caja (Gs.)"
     );
 
-    if(!montoReal) return;
+    if(textoContado === null) return;
+
+    const montoReal = window.parseMontoGs(textoContado)
+
+    if(!Number.isFinite(montoReal) || montoReal < 0){
+        alert("Monto inválido. Ejemplo: 150.000")
+        return
+    }
 
     fetch(
 
@@ -1308,3 +1340,31 @@ function crearClienteNuevo(){
 
 }
 
+
+
+/* ======================
+TICKET
+====================== */
+
+async function imprimirTicket(ventaId){
+    // Se abre la ventana antes del fetch para que el navegador no la bloquee.
+    const ventana = window.open("", "_blank", "width=380,height=640")
+    try{
+        const res = await fetch(window.apiUrl(`ventas/ticket/${encodeURIComponent(ventaId)}/`), {
+            headers: { "Authorization": "Bearer " + token }
+        })
+        if(!res.ok) throw new Error("No se pudo generar el ticket")
+        const html = await res.text()
+        if(!ventana){
+            alert("El navegador bloqueó la ventana del ticket. Permite ventanas emergentes para este sitio.")
+            return
+        }
+        ventana.document.open()
+        ventana.document.write(html)
+        ventana.document.close()
+    }catch(error){
+        console.error(error)
+        if(ventana) ventana.close()
+        alert(error.message)
+    }
+}

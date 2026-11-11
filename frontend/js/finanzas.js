@@ -271,10 +271,16 @@ window.guardarGasto = async function(){
             "descripcion"
         ).value
 
-        const monto =
+        const monto = window.parseMontoGs(
         document.getElementById(
             "monto"
         ).value
+        )
+
+        if(!Number.isFinite(monto) || monto <= 0){
+            alert("Monto inválido. Ejemplo: 150.000")
+            return
+        }
 
 
         const res = await fetch(

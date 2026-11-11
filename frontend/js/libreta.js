@@ -279,6 +279,10 @@ async function verDetalle(id){
 
                                 ? "Compra"
 
+                                : m.tipo === "ANULACION"
+
+                                ? "Anulación de venta"
+
                                 : "Pago"}
 
                         </strong>
@@ -404,13 +408,23 @@ function cerrarModal(){
 
 function cobrar(id){
 
-    const monto = prompt(
+    const texto = prompt(
 
-        "Ingrese el monto cobrado:"
+        "Ingrese el monto cobrado (Gs.):"
 
     )
 
-    if(!monto){
+    if(texto === null){
+
+        return
+
+    }
+
+    const monto = window.parseMontoGs(texto)
+
+    if(!Number.isFinite(monto) || monto <= 0){
+
+        alert("Monto inválido. Ejemplo: 50.000")
 
         return
 
