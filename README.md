@@ -75,6 +75,7 @@ ruff format . ..	ests
 - Al cobrar, el POS ofrece **Ticket** (comprobante interno) o **Factura**. La factura pide RUC (se valida el dígito verificador), cédula o "Sin nombre" (RUC 44444401-7), razón social y, opcionalmente, dirección, teléfono y correo; los clientes se autocompletan por documento.
 - Un ADMIN carga en **Facturación** (`frontend/facturacion.html`) la razón social, el RUC, el timbrado y su vigencia, el establecimiento, el punto de expedición, la numeración y el formato de impresión (ticket de 80 mm o A4).
 - Cada producto tiene su tasa de IVA (10 %, 5 % o exenta). Los precios incluyen IVA; la factura muestra los valores por tasa, la liquidación del IVA y el total en letras, con original y duplicado.
+- **Facturas emitidas** (`frontend/ventas/facturas.html`, ADMIN/GERENTE) lista las facturas con filtros por fecha, cliente, estado y condición; muestra totales e IVA del período, abre cada factura en formato A4 estilo factura electrónica (logo, QR y código de control) y exporta el **libro de ventas** en CSV para el contador.
 - Desde **Historial de ventas** se reimprime la factura o se emite la factura de una venta ya cobrada. Anular la venta anula su factura; el número no se reutiliza.
 - La validez legal de la factura impresa depende de que el timbrado esté autorizado por la SET para esa modalidad (autoimpresor). El sistema no emite facturas electrónicas (SIFEN).
 

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factura {{ f.numero }}</title>
+<style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; }
+    html, body { background: #fff; }
+    body { margin: 0; color: #1f2937; font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 10.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hoja { position: relative; width: 190mm; margin: 0 auto; padding: 6mm 0; }
+    p { margin: 1px 0; }
+    .b { font-weight: 700; }
+    .r { text-align: right; white-space: nowrap; }
+    .c { text-align: center; }
+    .gris { color: #6b7280; }
+
+    .franja { height: 6px; border-radius: 6px 6px 0 0; background: linear-gradient(90deg, #e8a64b, #f97316); }
+
+    .cabecera { display: grid; grid-template-columns: 1.55fr 1fr; border: 1px solid #d1d5db; border-top: 0; }
+    .emisor { display: flex; gap: 14px; padding: 12px 14px; border-right: 1px solid #d1d5db; }
+    .emisor .logo-luna { width: 62mm; height: auto; flex: none; }
+    .emisor .datos { align-self: center; }
+    .emisor .razon { font-size: 13px; font-weight: 800; }
+    .documento { padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 3px; background: #fff7ed; }
+    .documento .tipo { font-size: 18px; font-weight: 800; letter-spacing: 3px; color: #ea580c; }
+    .documento .numero { font-size: 16px; font-weight: 800; }
+    .documento .linea { display: flex; justify-content: space-between; gap: 8px; }
+
+    .bloque { border: 1px solid #d1d5db; border-top: 0; padding: 8px 14px; }
+    .bloque h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #ea580c; }
+    .grilla { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px 16px; }
+    .grilla.dos { grid-template-columns: 1.4fr 1fr; }
+    .campo span { color: #6b7280; }
+
+    table { width: 100%; border-collapse: collapse; }
+    .detalle { border: 1px solid #d1d5db; border-top: 0; }
+    .detalle th { background: #1f2937; color: #fff; font-size: 9.5px; font-weight: 600; padding: 6px 5px; text-transform: uppercase; letter-spacing: .03em; }
+    .detalle td { padding: 5px; border-bottom: 1px solid #eef0f3; vertical-align: top; }
+    .detalle tbody tr:nth-child(even) td { background: #fafafa; }
+
+    .totales { border: 1px solid #d1d5db; border-top: 0; }
+    .totales td { padding: 5px 8px; border-bottom: 1px solid #eef0f3; }
+    .totales .total td { background: #fff7ed; font-size: 13px; font-weight: 800; color: #9a3412; }
+    .letras { padding: 6px 14px; border: 1px solid #d1d5db; border-top: 0; }
+
+    .pie { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; border: 1px solid #d1d5db; border-top: 0; padding: 12px 14px; border-radius: 0 0 6px 6px; }
+    .pie svg { display: block; }
+    .control { font-family: Consolas, "Courier New", monospace; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #111827; }
+    .leyenda { margin-top: 6px; font-size: 9.5px; color: #4b5563; line-height: 1.45; }
+
+    .sello-anulada {
+        position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg);
+        border: 6px solid rgba(220, 38, 38, .55); color: rgba(220, 38, 38, .55);
+        padding: 6px 28px; font-size: 64px; font-weight: 900; letter-spacing: 10px; pointer-events: none;
+    }
+
+    @media screen { body { padding: 10px; } .hoja { box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: 8mm; width: 206mm; } }
+</style>
+</head>
+<body{% if auto_imprimir %} onload="window.print()"{% endif %}>
+<main class="hoja">
+    {% if f.estado == "ANULADA" %}<div class="sello-anulada" aria-label="Factura anulada">ANULADA</div>{% endif %}
+
+    <div class="franja"></div>
+    <section class="cabecera">
+        <div class="emisor">
+            {% include "img/logo_luna.svg" %}
+            <div class="datos">
+                <p class="razon">{{ f.emisor_razon_social }}</p>
+                {% if f.emisor_nombre_fantasia and f.emisor_nombre_fantasia != f.emisor_razon_social %}<p>{{ f.emisor_nombre_fantasia }}</p>{% endif %}
+                <p><span class="b">RUC:</span> {{ f.emisor_ruc }}</p>
+                {% if f.emisor_actividad %}<p>{{ f.emisor_actividad }}</p>{% endif %}
+                <p>{{ f.emisor_direccion }}{% if f.emisor_ciudad %} - {{ f.emisor_ciudad }}{% endif %}</p>
+                {% if f.emisor_telefono %}<p>Tel.: {{ f.emisor_telefono }}</p>{% endif %}
+                {% if f.emisor_email %}<p>{{ f.emisor_email }}</p>{% endif %}
+            </div>
+        </div>
+        <div class="documento">
+            <p class="tipo">FACTURA</p>
+            <p class="numero">N.º {{ f.numero }}</p>
+            <p class="linea"><span class="gris">Timbrado N.º</span><span class="b">{{ f.timbrado }}</span></p>
+            <p class="linea"><span class="gris">Inicio de vigencia</span><span>{{ timbrado_inicio }}</span></p>
+            <p class="linea"><span class="gris">Fin de vigencia</span><span>{{ timbrado_fin }}</span></p>
+            <p class="linea"><span class="gris">RUC emisor</span><span class="b">{{ f.emisor_ruc }}</span></p>
+        </div>
+    </section>
+
+    <section class="bloque">
+        <h3>Datos de la operación</h3>
+        <div class="grilla">
+            <p class="campo"><span>Fecha y hora de emisión:</span> {{ fecha }}</p>
+            <p class="campo"><span>Condición de venta:</span> <b>{{ f.get_condicion_display }}</b></p>
+            <p class="campo"><span>Forma de pago:</span> {{ metodo }}</p>
+            <p class="campo"><span>Moneda:</span> Guaraní (PYG)</p>
+            <p class="campo"><span>Tipo de cambio:</span> 1</p>
+            <p class="campo"><span>Ticket / Cajero:</span> {{ venta.numero_ticket }} · {{ cajero }}</p>
+        </div>
+    </section>
+
+    <section class="bloque">
+        <h3>Datos del receptor</h3>
+        <div class="grilla dos">
+            <p class="campo"><span>Nombre o razón social:</span> <b>{{ f.cliente_razon_social }}</b></p>
+            <p class="campo"><span>{% if f.cliente_tipo_documento == "CI" %}Cédula de identidad{% else %}RUC{% endif %}:</span> <b>{{ f.cliente_documento }}</b></p>
+            {% if f.cliente_direccion %}<p class="campo"><span>Dirección:</span> {{ f.cliente_direccion }}</p>{% endif %}
+            {% if f.cliente_telefono %}<p class="campo"><span>Teléfono:</span> {{ f.cliente_telefono }}</p>{% endif %}
+            {% if f.cliente_email %}<p class="campo"><span>Correo electrónico:</span> {{ f.cliente_email }}</p>{% endif %}
+        </div>
+    </section>
+
+    <table class="detalle">
+        <thead>
+            <tr>
+                <th style="width:13%">Código</th>
+                <th>Descripción</th>
+                <th style="width:9%">Unidad</th>
+                <th style="width:7%" class="r">Cant.</th>
+                <th style="width:11%" class="r">Precio unit.</th>
+                <th style="width:10%" class="r">Exentas</th>
+                <th style="width:10%" class="r">5 %</th>
+                <th style="width:11%" class="r">10 %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lineas %}
+            <tr>
+                <td>{{ l.codigo }}</td>
+                <td>{{ l.descripcion }}</td>
+                <td>{{ l.unidad }}</td>
+                <td class="r">{{ l.cantidad }}</td>
+                <td class="r">{{ l.precio }}</td>
+                <td class="r">{{ l.exenta }}</td>
+                <td class="r">{{ l.iva5 }}</td>
+                <td class="r">{{ l.iva10 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="totales">
+        <tr>
+            <td class="b">Subtotal por tasa</td>
+            <td class="r" style="width:10%">{{ total_exenta }}</td>
+            <td class="r" style="width:10%">{{ total_5 }}</td>
+            <td class="r" style="width:11%">{{ total_10 }}</td>
+        </tr>
+        <tr>
+            <td>Liquidación del IVA: &nbsp; (5 %) Gs. {{ iva_5 }} &nbsp;·&nbsp; (10 %) Gs. {{ iva_10 }}</td>
+            <td colspan="2" class="r gris">Total IVA</td>
+            <td class="r b">{{ iva_total }}</td>
+        </tr>
+        <tr class="total">
+            <td>TOTAL DE LA OPERACIÓN</td>
+            <td colspan="3" class="r">Gs. {{ total }}</td>
+        </tr>
+    </table>
+    <p class="letras"><span class="gris">Total en guaraníes:</span> <b>{{ total_letras }}</b></p>
+
+    <section class="pie">
+        {{ qr|safe }}
+        <div>
+            <p class="gris">Código de control</p>
+            <p class="control">{{ codigo_control }}</p>
+            <p class="leyenda">
+                Escanee el código QR o use el número de factura y el código de control para verificar
+                este comprobante en el sistema de gestión del emisor.<br>
+                Comprobante emitido por sistema autoimpresor con timbrado N.º {{ f.timbrado }}.
+                No constituye un Documento Electrónico (DE) del SIFEN.
+            </p>
+        </div>
+    </section>
+</main>
+</body>
+</html>

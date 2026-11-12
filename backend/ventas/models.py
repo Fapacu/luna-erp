@@ -112,6 +112,7 @@ class ConfiguracionFacturacion(models.Model):
     FORMATOS = (
         ("TICKET", "Ticket (impresora térmica 80 mm)"),
         ("A4", "Hoja A4"),
+        ("DIGITAL", "A4 estilo factura electrónica"),
     )
 
     razon_social = models.CharField(max_length=200, blank=True, default="")

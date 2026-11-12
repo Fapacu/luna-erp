@@ -27,6 +27,7 @@ urlpatterns = [
     # Facturación
     path("facturacion/configuracion/", views.configuracion_facturacion),
     path("facturacion/clientes/", views.buscar_cliente_documento),
+    path("facturas/", views.listar_facturas),
     path("factura/<int:venta_id>/", views.imprimir_factura),
     path("<int:venta_id>/facturar/", views.facturar_venta),
 ]

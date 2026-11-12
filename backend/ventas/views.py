@@ -1369,6 +1369,8 @@ def imprimir_factura(request, venta_id):
         subtotal = formatear_guaranies(d.subtotal)
         lineas.append(
             {
+                "codigo": d.producto.codigo_barra,
+                "unidad": "Kilogramo" if (d.producto.unidad or "").lower() == "kg" else "Unidad",
                 "cantidad": f"{cantidad:f}".replace(".", ","),
                 "descripcion": d.producto.nombre,
                 "precio": formatear_guaranies(d.precio_venta),
@@ -1383,12 +1385,26 @@ def imprimir_factura(request, venta_id):
     formato = str(
         request.query_params.get("formato") or ConfiguracionFacturacion.obtener().formato_factura
     ).upper()
-    if formato not in ("TICKET", "A4"):
+    if formato not in dict(ConfiguracionFacturacion.FORMATOS):
         formato = "TICKET"
 
+    contexto_digital = {}
+    if formato == "DIGITAL":
+        codigo = facturacion.codigo_control(factura)
+        contexto_digital = {
+            "codigo_control": facturacion.agrupar(codigo),
+            "qr": facturacion.qr_svg(facturacion.texto_qr(factura), 132),
+            "cajero": venta.usuario.username,
+            "subtotal": formatear_guaranies(
+                factura.total_exenta + factura.total_gravada_5 + factura.total_gravada_10
+            ),
+        }
+
     html = render_to_string(
-        "factura.html",
+        "factura_digital.html" if formato == "DIGITAL" else "factura.html",
         {
+            **contexto_digital,
+            "auto_imprimir": request.query_params.get("imprimir") != "0",
             "f": factura,
             "venta": venta,
             "lineas": lineas,
@@ -1567,3 +1583,130 @@ def buscar_cliente_documento(request):
             for c in clientes
         ]
     )
+
+
+def _fila_factura(f):
+    return {
+        "id": f.id,
+        "venta_id": f.venta_id,
+        "numero": f.numero,
+        "fecha": timezone.localtime(f.fecha_emision).strftime("%d/%m/%Y %H:%M"),
+        "estado": f.estado,
+        "condicion": f.condicion,
+        "cliente_tipo_documento": f.cliente_tipo_documento,
+        "cliente_documento": f.cliente_documento,
+        "cliente_razon_social": f.cliente_razon_social,
+        "total_exenta": float(f.total_exenta),
+        "total_gravada_5": float(f.total_gravada_5),
+        "total_gravada_10": float(f.total_gravada_10),
+        "iva_5": float(f.iva_5),
+        "iva_10": float(f.iva_10),
+        "total": float(f.total),
+        "timbrado": f.timbrado,
+        "usuario": f.usuario.username,
+    }
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def listar_facturas(request):
+    """Facturas emitidas con filtros y totales (ADMIN/GERENTE). ?formato=csv descarga el libro de ventas."""
+    requiere_roles(request.user, "ADMIN", "GERENTE")
+
+    try:
+        desde = _parse_fecha(request.query_params.get("desde"))
+        hasta = _parse_fecha(request.query_params.get("hasta"))
+    except ValueError:
+        return Response({"error": "Fechas inválidas. Usa el formato AAAA-MM-DD."}, status=400)
+
+    facturas = filtrar_rango(Factura.objects.select_related("usuario"), "fecha_emision", desde, hasta)
+
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        facturas = facturas.filter(
+            Q(numero__icontains=q) | Q(cliente_documento__icontains=q) | Q(cliente_razon_social__icontains=q)
+        )
+    estado = (request.query_params.get("estado") or "").strip().upper()
+    if estado in dict(Factura.ESTADOS):
+        facturas = facturas.filter(estado=estado)
+    condicion = (request.query_params.get("condicion") or "").strip().upper()
+    if condicion in dict(Factura.CONDICIONES):
+        facturas = facturas.filter(condicion=condicion)
+
+    facturas = facturas.order_by("-fecha_emision", "-id")
+
+    if request.query_params.get("formato") == "csv":
+        return _libro_ventas_csv(facturas, desde, hasta)
+
+    emitidas = facturas.filter(estado="EMITIDA")
+    sumas = emitidas.aggregate(
+        total=Sum("total"),
+        iva_5=Sum("iva_5"),
+        iva_10=Sum("iva_10"),
+        exentas=Sum("total_exenta"),
+    )
+    resumen = {
+        "cantidad": emitidas.count(),
+        "anuladas": facturas.filter(estado="ANULADA").count(),
+        "total": float(sumas["total"] or 0),
+        "iva_5": float(sumas["iva_5"] or 0),
+        "iva_10": float(sumas["iva_10"] or 0),
+        "exentas": float(sumas["exentas"] or 0),
+    }
+    return Response({"resumen": resumen, "facturas": [_fila_factura(f) for f in facturas[:500]]})
+
+
+def _libro_ventas_csv(facturas, desde, hasta):
+    """Libro de ventas en CSV (separador ';' para Excel en español)."""
+    import csv
+
+    nombre = f"libro_ventas_{desde or 'inicio'}_{hasta or 'hoy'}.csv"
+    respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
+    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}"'
+    respuesta.write("\ufeff")  # BOM para que Excel reconozca UTF-8
+    escritor = csv.writer(respuesta, delimiter=";")
+    escritor.writerow(
+        [
+            "Fecha",
+            "Tipo de comprobante",
+            "Número",
+            "Timbrado",
+            "Condición",
+            "Tipo de documento",
+            "RUC/CI",
+            "Nombre o razón social",
+            "Gravada 10 % (IVA incl.)",
+            "IVA 10 %",
+            "Gravada 5 % (IVA incl.)",
+            "IVA 5 %",
+            "Exentas",
+            "Total",
+            "Estado",
+        ]
+    )
+    for f in facturas.iterator():
+        anulada = f.estado == "ANULADA"
+
+        def monto(valor, anulada=anulada):
+            return 0 if anulada else int(facturacion.redondear_gs(valor))
+
+        escritor.writerow(
+            [
+                timezone.localtime(f.fecha_emision).strftime("%d/%m/%Y"),
+                "Factura",
+                f.numero,
+                f.timbrado,
+                f.get_condicion_display(),
+                f.get_cliente_tipo_documento_display(),
+                f.cliente_documento,
+                f.cliente_razon_social,
+                monto(f.total_gravada_10),
+                monto(f.iva_10),
+                monto(f.total_gravada_5),
+                monto(f.iva_5),
+                monto(f.total_exenta),
+                monto(f.total),
+                f.get_estado_display(),
+            ]
+        )
+    return respuesta

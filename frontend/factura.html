@@ -52,7 +52,7 @@
     @media print { @page { margin: 6mm; } }
 </style>
 </head>
-<body class="{{ formato }}" onload="window.print()">
+<body class="{{ formato }}"{% if auto_imprimir %} onload="window.print()"{% endif %}>
 
 {% for copia in copias %}
 <section class="copia">

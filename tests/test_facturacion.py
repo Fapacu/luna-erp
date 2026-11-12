@@ -252,3 +252,52 @@ class FacturacionTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.product.refresh_from_db()
         self.assertEqual(self.product.tasa_iva, 5)
+
+    def test_listado_facturas_resumen_csv_y_formato_digital(self):
+        ruc = "1234567-9"
+        venta = self.vender_con_factura(
+            {"tipo_documento": "RUC", "documento": ruc, "razon_social": "Juan Pérez"}
+        ).data
+        self.vender_con_factura({"tipo_documento": "SIN_NOMBRE"})
+
+        response = self.client.get("/api/ventas/facturas/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["resumen"]["cantidad"], 2)
+        self.assertEqual(response.data["resumen"]["total"], 74000.0)
+        self.assertEqual(response.data["resumen"]["iva_10"], 2000.0)
+        filtrado = self.client.get("/api/ventas/facturas/", {"q": "juan"}).data
+        self.assertEqual([f["cliente_documento"] for f in filtrado["facturas"]], [ruc])
+        self.assertEqual(self.client.get("/api/ventas/facturas/", {"desde": "mal"}).status_code, 400)
+
+        csv = self.client.get("/api/ventas/facturas/", {"formato": "csv"})
+        self.assertEqual(csv["Content-Type"], "text/csv; charset=utf-8")
+        contenido = csv.content.decode("utf-8-sig")
+        self.assertIn("001-001-0000041", contenido)
+        self.assertIn("JUAN PÉREZ", contenido)
+
+        html = self.client.get(
+            f"/api/ventas/factura/{venta['venta_id']}/?formato=DIGITAL&imprimir=0"
+        ).content.decode()
+        for texto in (
+            "Datos de la operación",
+            "Código de control",
+            "Guaraní (PYG)",
+            '<path fill="#000"',
+            "No constituye",
+        ):
+            self.assertIn(texto, html)
+        self.assertNotIn("window.print()", html)
+
+        self.client.force_authenticate(self.cashier)
+        self.assertEqual(self.client.get("/api/ventas/facturas/").status_code, 403)
+
+    def test_codigo_control_es_estable_y_depende_de_los_datos(self):
+        from ventas.facturacion import codigo_control
+
+        self.vender_con_factura({"tipo_documento": "SIN_NOMBRE"})
+        factura = Factura.objects.get()
+        codigo = codigo_control(factura)
+        self.assertEqual(len(codigo), 40)
+        self.assertEqual(codigo, codigo_control(Factura.objects.get()))
+        factura.total += 1
+        self.assertNotEqual(codigo, codigo_control(factura))

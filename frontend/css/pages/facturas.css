@@ -1,0 +1,114 @@
+/* =====================================================
+   FACTURAS EMITIDAS
+===================================================== */
+
+.facturas-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+    background: linear-gradient(135deg, #fff7ed, #fff);
+    border: 1px solid #fde4c8;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.facturas-cabecera::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: linear-gradient(#e8a64b, #f97316);
+}
+
+.facturas-logo { width: 210px; max-width: 100%; height: auto; }
+.facturas-titulo { flex: 1; min-width: 220px; }
+.facturas-titulo h1 { margin: 0; font-size: 24px; color: #1f2937; }
+.facturas-titulo p { margin: 4px 0 0; color: #6b7280; font-size: 14px; }
+
+.facturas-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.kpi-factura {
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .04);
+}
+
+.kpi-factura span { display: block; font-size: 12px; color: #6b7280; }
+.kpi-factura strong { display: block; margin-top: 4px; font-size: 20px; color: #1f2937; }
+.kpi-factura small { color: #6b7280; }
+.kpi-factura.destacado { background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; }
+.kpi-factura.destacado span,
+.kpi-factura.destacado strong,
+.kpi-factura.destacado small { color: #fff; }
+
+.facturas-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.facturas-filtros label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #4b5563; }
+.facturas-filtros label.ancho { flex: 1; min-width: 220px; }
+
+.facturas-filtros input,
+.facturas-filtros select {
+    padding: 9px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    background: #fff;
+}
+
+.facturas-filtros input:focus,
+.facturas-filtros select:focus { outline: none; border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, .18); }
+
+.tabla-facturas .r { text-align: right; white-space: nowrap; }
+.tabla-facturas .numero-factura { font-family: Consolas, "Courier New", monospace; font-weight: 700; color: #1f2937; white-space: nowrap; }
+.tabla-facturas .cliente small { display: block; color: #6b7280; }
+.tabla-facturas .vacio { text-align: center; color: #6b7280; padding: 26px; }
+.tabla-facturas tr.anulada td { color: #9ca3af; }
+.tabla-facturas tr.anulada .numero-factura { text-decoration: line-through; }
+
+.acciones-factura { display: flex; gap: 6px; }
+.acciones-factura button {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #ea580c;
+    cursor: pointer;
+}
+.acciones-factura button.secundario { border-color: #e5e7eb; background: #fff; color: #374151; }
+.acciones-factura button:hover { filter: brightness(.96); transform: translateY(-1px); }
+
+/* Visor de la factura dentro de la ventana Luna */
+.visor-factura { background: #f3f4f6; border-radius: 12px; padding: 10px; }
+.visor-factura iframe { display: block; width: 100%; height: min(70vh, 900px); border: 0; border-radius: 8px; background: #fff; }
+
+@media (max-width: 600px) {
+    .facturas-logo { width: 160px; }
+    .facturas-cabecera .luna-btn { width: 100%; }
+    .facturas-filtros > * { flex: 1 1 140px; }
+    .visor-factura iframe { height: 65vh; }
+}

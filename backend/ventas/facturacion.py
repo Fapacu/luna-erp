@@ -8,11 +8,15 @@ autorizado por la SET para la modalidad con la que se imprime (autoimpresor).
 Este módulo no emite documentos electrónicos (SIFEN).
 """
 
+import hashlib
+import hmac
 import re
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.conf import settings
 from django.utils import timezone
+from reportlab.graphics.barcode import qrencoder
 
 from .models import Cliente, ConfiguracionFacturacion, Factura
 
@@ -328,3 +332,65 @@ def es_fecha(valor):
         return date.fromisoformat(str(valor))
     except (TypeError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------- Verificación
+
+
+def codigo_control(factura):
+    """Código de 40 caracteres que identifica la factura y no se puede falsificar sin la clave del sistema.
+
+    Es un HMAC-SHA256 de los datos fiscales principales; no es un CDC de SIFEN.
+    """
+    datos = "|".join(
+        str(valor)
+        for valor in (
+            factura.numero,
+            factura.timbrado,
+            factura.emisor_ruc,
+            factura.cliente_documento,
+            redondear_gs(factura.total),
+            timezone.localtime(factura.fecha_emision).strftime("%Y%m%d%H%M%S"),
+        )
+    )
+    firma = hmac.new(settings.SECRET_KEY.encode(), datos.encode(), hashlib.sha256).hexdigest().upper()
+    return firma[:40]
+
+
+def agrupar(codigo, tamano=4):
+    return " ".join(codigo[i : i + tamano] for i in range(0, len(codigo), tamano))
+
+
+def texto_qr(factura):
+    """Datos de verificación que se codifican en el QR de la factura."""
+    return "|".join(
+        (
+            "FACTURA",
+            f"RUC:{factura.emisor_ruc}",
+            f"TIMBRADO:{factura.timbrado}",
+            f"NRO:{factura.numero}",
+            f"FECHA:{timezone.localtime(factura.fecha_emision):%Y-%m-%d %H:%M}",
+            f"CLIENTE:{factura.cliente_documento}",
+            f"TOTAL:{redondear_gs(factura.total)}",
+            f"IVA:{redondear_gs(factura.iva_5 + factura.iva_10)}",
+            f"CONTROL:{codigo_control(factura)}",
+        )
+    )
+
+
+def qr_svg(texto, tamano=120):
+    """SVG compacto (un único path) con el código QR del texto."""
+    qr = qrencoder.QRCode(None, qrencoder.QRErrorCorrectLevel.M)
+    qr.addData(texto)
+    qr.make()
+    modulos = qr.getModuleCount()
+    borde = 2
+    lado = modulos + borde * 2
+    trazos = [
+        f"M{c + borde} {f + borde}h1v1h-1z" for f in range(modulos) for c in range(modulos) if qr.isDark(f, c)
+    ]
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {lado} {lado}" width="{tamano}" height="{tamano}" '
+        f'shape-rendering="crispEdges" role="img" aria-label="Código QR de verificación">'
+        f'<rect width="{lado}" height="{lado}" fill="#fff"/><path fill="#000" d="{"".join(trazos)}"/></svg>'
+    )
