@@ -16,7 +16,7 @@ from ventas.models import Caja, DetalleVenta, Venta
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def estadisticas(request):
-    # 🔥 RANGO DEL DÍA (SOLUCIÓN ZONA HORARIA)
+    # Rango del día local (independiente de las tablas de zona horaria)
     hoy = localdate()
 
     inicio, fin = rango_dia(hoy)
@@ -26,15 +26,15 @@ def estadisticas(request):
         estado="COMPLETADA",
     )
 
-    # 💰 TOTAL DEL DÍA
+    # TOTAL DEL DÍA
     total_hoy = ventas.aggregate(total=Sum("total"))["total"] or 0
 
-    # 📦 PRODUCTOS VENDIDOS
+    # PRODUCTOS VENDIDOS
     productos_hoy = (
         DetalleVenta.objects.filter(venta__in=ventas).aggregate(total=Sum("cantidad"))["total"] or 0
     )
 
-    # 💵 CAJA TOTAL
+    # CAJA TOTAL
     cajas_abiertas = Caja.objects.filter(abierta=True)
     caja_total = sum(
         c.monto_inicial
@@ -46,12 +46,12 @@ def estadisticas(request):
         for c in cajas_abiertas
     )
 
-    # 💳 MÉTODOS DE PAGO
+    # MÉTODOS DE PAGO
     efectivo = ventas.filter(metodo_pago="EFECTIVO").aggregate(total=Sum("total"))["total"] or 0
     tarjeta = ventas.filter(metodo_pago="TARJETA").aggregate(total=Sum("total"))["total"] or 0
     transferencia = ventas.filter(metodo_pago="TRANSFERENCIA").aggregate(total=Sum("total"))["total"] or 0
 
-    # ⚠ STOCK BAJO (CANTIDAD)
+    # STOCK BAJO (CANTIDAD)
     stock_bajo = Producto.objects.filter(stock__lte=F("stock_minimo"), activo=True).count()
 
     return Response(

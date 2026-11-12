@@ -58,7 +58,7 @@ def dashboard_financiero(request):
     )
 
 
-# 🔹 DASHBOARD SIMPLE (HOY)
+# DASHBOARD SIMPLE (HOY)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_data(request):
@@ -106,7 +106,7 @@ def dashboard_data(request):
     )
 
 
-# 🔹 PRODUCTOS POR MES
+# PRODUCTOS POR MES
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def productos_mas_vendidos(request):
@@ -141,7 +141,7 @@ def productos_mas_vendidos(request):
     return Response(list(productos))
 
 
-# 🔥 DASHBOARD PRINCIPAL
+# DASHBOARD PRINCIPAL
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_reporte(request):
@@ -156,7 +156,7 @@ def dashboard_reporte(request):
     if not desde or not hasta:
         return Response({"error": "Debe enviar desde y hasta"}, status=400)
 
-    # ✅ validar fechas
+    # validar fechas
     try:
         desde_date = make_aware(datetime.strptime(desde, "%Y-%m-%d"))
         hasta_date = make_aware(datetime.strptime(hasta, "%Y-%m-%d"))
@@ -166,7 +166,7 @@ def dashboard_reporte(request):
     except (TypeError, ValueError):
         return Response({"error": "Fechas inválidas"}, status=400)
 
-    # 📅 PERIODO ACTUAL
+    # PERIODO ACTUAL
     ventas = Venta.objects.filter(
         fecha__gte=desde_date,
         fecha__lt=hasta_exclusivo,
@@ -174,7 +174,7 @@ def dashboard_reporte(request):
     )
     ventas_ids = ventas.values_list("id", flat=True)
 
-    # 🔙 PERIODO ANTERIOR
+    # PERIODO ANTERIOR
     dias = (hasta_exclusivo - desde_date).days
     anterior_desde = desde_date - timedelta(days=dias)
     anterior_hasta = desde_date
@@ -183,7 +183,7 @@ def dashboard_reporte(request):
         fecha__gte=anterior_desde, fecha__lt=anterior_hasta, estado="COMPLETADA"
     )
 
-    # 🔢 MÉTRICAS
+    # MÉTRICAS
     total_ventas = ventas.count()
 
     ingreso_total = ventas.aggregate(total=Sum("total"))["total"] or 0
@@ -243,7 +243,7 @@ def dashboard_reporte(request):
     if ingreso_anterior > 0:
         crecimiento = ((ingreso_total - ingreso_anterior) / ingreso_anterior) * 100
 
-    # 🏆 PRODUCTOS
+    # PRODUCTOS
 
     productos = (
         DetalleVenta.objects.filter(venta_id__in=ventas_ids)
@@ -261,18 +261,18 @@ def dashboard_reporte(request):
         for p in productos
     ]
 
-    # 📈 VENTAS POR DÍA
+    # VENTAS POR DÍA
     ventas_por_dia = totales_por_dia(ventas)
 
     grafico_linea = [{"fecha": dia.isoformat(), "total": float(total)} for dia, total in ventas_por_dia]
 
-    # 💳 MÉTODOS DE PAGO
+    # MÉTODOS DE PAGO
     metodos = ventas.values("metodo_pago").annotate(total=Sum("total"))
 
-    # 👤 CLIENTES TOP
+    # CLIENTES TOP
     clientes = ventas.values("cliente__nombre").annotate(total=Sum("total")).order_by("-total")[:5]
 
-    # 🧠 PREDICCIÓN (POR DÍA)
+    # PREDICCIÓN (POR DÍA)
     ventas_por_dia_totales = [total for _, total in ventas_por_dia]
 
     prediccion = 0
@@ -280,7 +280,7 @@ def dashboard_reporte(request):
         promedio = sum(ventas_por_dia_totales) / len(ventas_por_dia_totales)
         prediccion = promedio * Decimal("1.10")
 
-    # 📦 ALERTAS STOCK
+    # ALERTAS STOCK
     alertas = Producto.objects.filter(stock__lte=models.F("stock_minimo"), activo=True).values(
         "nombre", "stock"
     )
@@ -306,7 +306,7 @@ def dashboard_reporte(request):
     )
 
 
-# 🔹 EXPORTAR PDF
+# EXPORTAR PDF
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def exportar_pdf(request):

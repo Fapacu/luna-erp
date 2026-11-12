@@ -289,7 +289,7 @@ def ajustar_stock(request):
     cantidad = request.data.get("cantidad")
     motivo = request.data.get("motivo", "")
 
-    # 🔴 VALIDACIONES (AQUÍ VAN)
+    # Validaciones
     if not producto_id:
         return Response({"error": "Producto requerido"}, status=400)
 
@@ -312,8 +312,7 @@ def ajustar_stock(request):
     if cantidad == 0:
         return Response({"error": "Cantidad no puede ser 0"}, status=400)
 
-    # 🔍 VALIDAR PRODUCTO
-    # 🧠 LÓGICA CENTRAL
+    # Bloquea el producto y aplica el ajuste dentro de una transacción.
     try:
         with transaction.atomic():
             producto = Producto.objects.select_for_update().get(id=producto_id, activo=True)
