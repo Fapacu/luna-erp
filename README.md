@@ -34,13 +34,10 @@ Los módulos principales están implementados y existe una suite de pruebas de f
 
    `migrate` crea automáticamente los roles ADMIN, GERENTE y CAJERO. `crear_admin` crea el primer administrador (pide la contraseña por teclado); el resto de los usuarios se crean desde la pantalla Usuarios.
 
-5. En otra terminal, desde la raíz, sirve el frontend por HTTP:
-
-   ```powershell
-   python -m http.server 5500 --directory frontend
-   ```
-
-   Abre `http://127.0.0.1:5500/login.html`. No uses `file://`.
+5. Abre `http://127.0.0.1:8000/`: Django sirve el frontend y la API en el mismo origen (con WhiteNoise).
+   Para desarrollar el frontend con otro servidor estático, todavía puedes usar
+   `python -m http.server 5500 --directory frontend` y abrir `http://127.0.0.1:5500/login.html`
+   (en ese puerto el frontend llama a la API en `:8000`). No uses `file://`.
 
 6. Primer uso: inicia sesión con el administrador, completa **Facturación** (si vas a emitir facturas), carga productos con su tasa de IVA, crea los usuarios cajeros y abre una caja desde el POS. Para entrar desde un teléfono, sirve el frontend en una IP LAN, agrega esa IP a `ALLOWED_HOSTS` y agrega el origen exacto a `CORS_ALLOWED_ORIGINS`; inicia Django escuchando en la interfaz LAN y habilita el puerto en el firewall.
 
@@ -84,6 +81,11 @@ ruff format . ..	ests
 - El ticket usa los datos cargados en Facturación; si están vacíos, usa `NEGOCIO_NOMBRE`, `NEGOCIO_RUC`, `NEGOCIO_DIRECCION` y `NEGOCIO_TELEFONO` (ver `.env.example`). El ticket es un comprobante interno, no una factura.
 - Las consultas por fecha usan rangos calculados en Python (`config/fechas.py`), por lo que no requieren cargar las tablas de zonas horarias de MySQL/MariaDB.
 - El inicio de sesión limita los intentos por IP (`LOGIN_THROTTLE_RATE`, por defecto `10/min`). El contador vive en memoria del proceso; con varios procesos WSGI conviene configurar una caché compartida.
+
+## Publicar en PythonAnywhere
+
+La guía paso a paso está en [`deploy/pythonanywhere/README.md`](deploy/pythonanywhere/README.md): base MySQL,
+variables de entorno, aplicación web, respaldo diario (`python manage.py respaldar_base`), dominio propio y actualizaciones.
 
 ## Preparación para producción
 

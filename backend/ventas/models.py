@@ -211,7 +211,8 @@ class Factura(models.Model):
 class CuentaPorCobrar(models.Model):
     cliente_nombre = models.CharField(max_length=200)
 
-    venta = models.ForeignKey(Venta, on_delete=models.CASCADE)
+    # Vacío cuando la cuenta se cargó a mano desde el libro (saldo anterior).
+    venta = models.ForeignKey(Venta, on_delete=models.CASCADE, null=True, blank=True)
 
     total = models.DecimalField(max_digits=14, decimal_places=2)
 
@@ -232,9 +233,10 @@ class MovimientoLibreta(models.Model):
         ("COMPRA", "Compra"),
         ("PAGO", "Pago"),
         ("ANULACION", "Anulación"),
+        ("SALDO_INICIAL", "Saldo anterior"),
     )
 
-    cuenta = models.ForeignKey(CuentaPorCobrar, on_delete=models.CASCADE, related_name="movimientos")
+    cuenta =models.ForeignKey(CuentaPorCobrar, on_delete=models.CASCADE, related_name="movimientos")
 
     venta = models.ForeignKey(Venta, on_delete=models.SET_NULL, null=True, blank=True)
 

@@ -944,9 +944,51 @@ def imprimir_ticket(request, venta_id):
 # =========================================
 
 
-@api_view(["GET"])
+def _crear_cuenta_libreta(request):
+    """Carga a mano una cuenta que ya existía en el libro, con su saldo pendiente."""
+    requiere_roles(request.user, "ADMIN", "GERENTE")
+
+    nombre = request.data.get("cliente_nombre")
+    if not isinstance(nombre, str) or not nombre.strip() or len(nombre.strip()) > 200:
+        return Response({"error": "El nombre del cliente es obligatorio (máx. 200 caracteres)."}, status=400)
+    nombre = nombre.strip()
+
+    try:
+        saldo = Decimal(str(request.data.get("saldo", "")))
+        if not saldo.is_finite() or saldo <= 0 or saldo.as_tuple().exponent < -2:
+            raise ValueError
+        if saldo >= Decimal("1e12"):
+            raise ValueError
+    except (InvalidOperation, TypeError, ValueError):
+        return Response({"error": "El saldo adeudado debe ser un monto mayor a cero."}, status=400)
+
+    with transaction.atomic():
+        # Misma regla que la venta por libreta: una sola cuenta activa por nombre.
+        if (
+            CuentaPorCobrar.objects.select_for_update()
+            .filter(cliente_nombre__iexact=nombre, cancelada=False)
+            .exists()
+        ):
+            return Response({"error": f"{nombre} ya tiene una libreta activa."}, status=400)
+        cuenta = CuentaPorCobrar.objects.create(cliente_nombre=nombre, total=saldo, saldo=saldo, pagado=0)
+        MovimientoLibreta.objects.create(cuenta=cuenta, tipo="SALDO_INICIAL", monto=saldo)
+        registrar_auditoria(
+            usuario=request.user,
+            modulo="LIBRETA",
+            accion="CARGAR_LIBRETA",
+            referencia=f"Cuenta #{cuenta.id}",
+            detalle=f"Cliente: {nombre}; saldo anterior cargado: {saldo}",
+        )
+
+    return Response({"success": True, "id": cuenta.id}, status=201)
+
+
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def libreta(request):
+    if request.method == "POST":
+        return _crear_cuenta_libreta(request)
+
     cuentas = CuentaPorCobrar.objects.all().order_by("-fecha")
 
     data = []

@@ -194,6 +194,32 @@ class ERPRegresionesTests(TestCase):
         )
         self.assertEqual(response.status_code, 400, response.data)
 
+    def test_cargar_cuenta_del_libro_con_saldo_anterior(self):
+        url = "/api/ventas/libreta/"
+        for invalido in ({"saldo": "50000"}, {"cliente_nombre": "Ana"}, {"cliente_nombre": "Ana", "saldo": 0}):
+            self.assertEqual(self.client.post(url, invalido, format="json").status_code, 400)
+        self.client.force_authenticate(self.cashier)
+        datos = {"cliente_nombre": " Ana Gómez ", "saldo": "50000"}
+        self.assertEqual(self.client.post(url, datos, format="json").status_code, 403)
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(url, datos, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        cuenta = CuentaPorCobrar.objects.get()
+        self.assertEqual((cuenta.cliente_nombre, cuenta.saldo), ("Ana Gómez", Decimal("50000")))
+        self.assertIsNone(cuenta.venta)
+        self.assertEqual(cuenta.movimientos.get().tipo, "SALDO_INICIAL")
+        # No es dinero recibido: no toca caja ni finanzas.
+        self.assertFalse(MovimientoFinanciero.objects.exists())
+        # Una sola cuenta activa por cliente.
+        repetida = {"cliente_nombre": "ana gómez", "saldo": "10"}
+        self.assertEqual(self.client.post(url, repetida, format="json").status_code, 400)
+        # Se cobra igual que una libreta nacida de una venta.
+        caja = self.abrir_caja()
+        cobro = {"caja_id": caja.id, "monto": "20000"}
+        response = self.client.post(f"{url}{cuenta.id}/cobrar/", cobro, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.client.get(f"{url}{cuenta.id}/").data["saldo"], 30000.0)
+
     def test_cobro_libreta_con_caja_observacion_y_comprobante(self):
         caja = self.abrir_caja()
         self.vender(caja, cantidad="3", metodo="LIBRETA")
@@ -239,3 +265,16 @@ class ERPRegresionesTests(TestCase):
             "/api/login/", {"username": "dueño", "password": "Clave-Segura-2026"}, format="json"
         )
         self.assertEqual(respuesta.status_code, 200, respuesta.data)
+
+    def test_django_sirve_el_frontend_en_el_mismo_dominio(self):
+        cliente = APIClient()
+        for ruta, texto in (
+            ("/", "Cargando sistema"),
+            ("/login.html", "loginForm"),
+            ("/ventas/facturas.html", "Facturas emitidas"),
+        ):
+            with self.subTest(ruta=ruta):
+                respuesta = cliente.get(ruta)
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertIn(texto, b"".join(respuesta.streaming_content).decode("utf-8"))
+        self.assertEqual(cliente.get("/api/ventas/caja/estado/").status_code, 401)

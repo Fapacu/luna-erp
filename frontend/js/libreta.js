@@ -297,6 +297,10 @@ async function verDetalle(id){
 
                                 ? "Compra"
 
+                                : m.tipo === "SALDO_INICIAL"
+
+                                ? "Saldo anterior (cargado del libro)"
+
                                 : m.tipo === "ANULACION"
 
                                 ? "Anulación de venta"
@@ -425,6 +429,86 @@ function cerrarModal(){
 }
 
 const formatoGs = (valor) => "Gs. " + Math.round(Number(valor) || 0).toLocaleString("es-PY")
+
+// Carga de clientes que ya tenían cuenta en el libro (solo ADMIN/GERENTE; el API lo impone).
+const btnNuevaCuenta = document.getElementById("btnNuevaCuenta")
+if(["ADMIN", "GERENTE"].includes(localStorage.getItem("rol"))){
+    btnNuevaCuenta.hidden = false
+    btnNuevaCuenta.addEventListener("click", nuevaCuenta)
+}
+
+function nuevaCuenta(){
+
+    const formulario = document.createElement("form")
+    formulario.id = "formNuevaCuenta"
+    formulario.noValidate = true
+    formulario.innerHTML = `
+        <div class="luna-campo">
+            <label for="nombreNuevaCuenta">Nombre del cliente</label>
+            <input id="nombreNuevaCuenta" maxlength="200" autocomplete="off" required placeholder="Como figura en el libro">
+        </div>
+
+        <div class="luna-campo">
+            <label for="saldoNuevaCuenta">Saldo que debe hoy</label>
+            <div class="luna-monto"><span>Gs.</span><input id="saldoNuevaCuenta" inputmode="numeric" autocomplete="off" required></div>
+            <small>Lo que el cliente adeuda según el libro. No se registra como ingreso de caja.</small>
+            <small id="errorNuevaCuenta" class="error" aria-live="polite"></small>
+        </div>`
+
+    const ventana = LunaUI.modal({
+        titulo: "Cargar cliente del libro",
+        subtitulo: "Cuenta que ya existía, con su saldo pendiente",
+        icono: "bi-person-plus-fill",
+        contenido: formulario,
+        acciones: [
+            { texto: "Cancelar", alPulsar: (v) => v.cerrar() },
+            { texto: "Guardar", tipo: "primario", icono: "bi-check2-circle", submit: true, form: "formNuevaCuenta", id: "btnGuardarCuenta" },
+        ],
+    })
+
+    const boton = document.getElementById("btnGuardarCuenta")
+    const inputNombre = formulario.querySelector("#nombreNuevaCuenta")
+    const inputSaldo = formulario.querySelector("#saldoNuevaCuenta")
+    const error = formulario.querySelector("#errorNuevaCuenta")
+    const campo = LunaUI.campoGuaranies(inputSaldo, () => { error.textContent = "" })
+    inputNombre.focus()
+
+    formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault()
+        const nombre = inputNombre.value.trim()
+        const saldo = campo.valor()
+        if(!nombre){
+            error.textContent = "Ingresa el nombre del cliente."
+            inputNombre.focus()
+            return
+        }
+        if(!Number.isFinite(saldo) || saldo <= 0){
+            error.textContent = "Ingresa el saldo adeudado. Ejemplo: 150.000"
+            inputSaldo.focus()
+            return
+        }
+        ventana.setCargando(boton, true, "Guardando…")
+        try{
+            const res = await fetch(`${API}/ventas/libreta/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + token
+                },
+                body: JSON.stringify({ cliente_nombre: nombre, saldo })
+            })
+            const data = await res.json()
+            if(!res.ok) throw new Error(data.error || data.detail || "No se pudo cargar el cliente")
+            ventana.cerrar()
+            LunaUI.toast(`${nombre} cargado con saldo ${formatoGs(saldo)}`, "exito")
+            cargarCuentas()
+        }catch(err){
+            console.error(err)
+            ventana.setCargando(boton, false)
+            error.textContent = err.message === "Failed to fetch" ? "No se pudo conectar con el servidor." : err.message
+        }
+    })
+}
 
 async function obtenerCajasAbiertas(){
     const res = await fetch(window.apiUrl("ventas/caja/estado/"), {

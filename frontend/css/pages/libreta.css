@@ -55,6 +55,10 @@
 
     gap:15px;
 
+    flex-wrap:wrap;
+
+    align-items:center;
+
 }
 
 

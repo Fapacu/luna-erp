@@ -14,7 +14,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "")
 if len(SECRET_KEY) < 32:
     raise ImproperlyConfigured("Configura SECRET_KEY con al menos 32 caracteres en el entorno.")
 
-DEBUG = os.getenv("DEBUG", "true").strip().lower() in {"1", "true", "yes"}
+DEBUG = os.getenv("DEBUG", "false").strip().lower() in {"1", "true", "yes"}
 _allowed_hosts = [
     host.strip()
     for host in os.getenv(
@@ -47,6 +47,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Sirve el frontend (raíz del sitio) y los estáticos del admin desde la misma app.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -94,6 +96,9 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST", "127.0.0.1"),
         "PORT": os.getenv("DB_PORT", "3306"),
         "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+        # Reabre la conexión si MySQL la cerró por inactividad (habitual en hosting compartido).
+        "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {"charset": "utf8mb4"},
     }
 }
 
@@ -103,6 +108,13 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR.parent / "staticfiles"
+
+# El frontend (HTML, CSS y JS) se publica en la raíz del mismo dominio que la API.
+FRONTEND_DIR = BASE_DIR.parent / "frontend"
+WHITENOISE_ROOT = FRONTEND_DIR
+WHITENOISE_INDEX_FILE = True
+# Los archivos del frontend no llevan hash en el nombre: caché corta para que las actualizaciones lleguen rápido.
+WHITENOISE_MAX_AGE = int(os.getenv("FRONTEND_CACHE_SEGUNDOS", "300"))
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR.parent / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -110,6 +122,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # Cantidad de proxies delante de Django (PythonAnywhere usa 1) para identificar la IP real del cliente.
+    "NUM_PROXIES": int(os.environ["NUM_PROXIES"]) if os.getenv("NUM_PROXIES") else None,
     "DEFAULT_THROTTLE_RATES": {
         # Limita intentos de inicio de sesión por IP para frenar fuerza bruta.
         "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),

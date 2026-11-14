@@ -13,13 +13,11 @@
         apiBase = /\/api$/i.test(normalizedBase) ? normalizedBase : `${normalizedBase}/api`;
     } else if (isFile) {
         apiBase = "http://127.0.0.1:8000/api";
-    } else if (host.endsWith(".trycloudflare.com") || (location.protocol === "https:" && !isPrivateNetwork)) {
-        // En producción, el proxy HTTPS debe publicar frontend y API bajo el mismo origen.
-        apiBase = `${location.origin}/api`;
-    } else if (isLoopback || isPrivateNetwork) {
-        const port = location.port === "8000" ? location.port : "8000";
-        apiBase = `${location.protocol}//${host || "127.0.0.1"}:${port}/api`;
+    } else if ((isLoopback || isPrivateNetwork) && location.port === "5500") {
+        // Desarrollo con el frontend en un servidor estático aparte (python -m http.server 5500).
+        apiBase = `${location.protocol}//${host || "127.0.0.1"}:8000/api`;
     } else {
+        // Django publica el frontend y la API en el mismo origen (desarrollo y producción).
         apiBase = `${location.origin}/api`;
     }
 

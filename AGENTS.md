@@ -37,7 +37,7 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-Sirve `frontend/` con un servidor HTTP estático y abre `frontend/login.html`. Evita abrir las páginas con `file://`, ya que el navegador puede bloquear llamadas al API. La configuración de desarrollo y despliegue está documentada en `README.md` y `.env.example`.
+Django sirve también `frontend/` en la raíz del sitio mediante WhiteNoise (`WHITENOISE_ROOT`): abre `http://127.0.0.1:8000/`. Si sirves `frontend/` aparte en el puerto 5500, `api-config.js` apunta la API a `:8000`. WhiteNoise indexa los archivos al iniciar: después de cambiar el frontend en producción hay que reiniciar la aplicación. `DEBUG` vale `false` si no está definido; en desarrollo pon `DEBUG=true` en `.env`. Evita abrir las páginas con `file://`, ya que el navegador puede bloquear llamadas al API. La configuración de desarrollo y despliegue está documentada en `README.md` y `.env.example`.
 
 Comprobaciones útiles:
 
@@ -79,6 +79,8 @@ frontend/
 
 Cada app Django contiene normalmente `models.py`, `views.py`, `urls.py` (con imports explícitos), `services.py` cuando corresponda y `migrations/`. Los permisos por rol están en `usuarios/permissions.py` (`requiere_roles`, `obtener_rol`); no hay serializers de DRF: las vistas validan y arman sus respuestas.
 
+Despliegue: guía de PythonAnywhere en `deploy/pythonanywhere/README.md`; respaldo con `python manage.py respaldar_base` (mysqldump comprimido con rotación).
+
 Instalación nueva: `migrate` crea los roles (migración `usuarios/0003_roles_iniciales`) y `python manage.py crear_admin --username <nombre>` crea el primer administrador.
 
 Estilo: el backend pasa `ruff check` y `ruff format` con `backend/pyproject.toml`; mantenlo así al modificar código. No dejes `console.log` de depuración en el frontend.
@@ -99,6 +101,7 @@ Estilo: el backend pasa `ruff check` y `ruff format` con `backend/pyproject.toml
 - Retiros y gastos de caja no pueden superar el efectivo disponible (`efectivo_en_caja`). Una venta sin `caja_id` solo usa una caja abierta del propio usuario.
 - Los productos con unidad distinta de `kg`, `g`, `lt` o `l` se venden en cantidades enteras.
 - Una venta por libreta solo se anula si el saldo pendiente de la cuenta cubre su importe; deja un `MovimientoLibreta` de tipo `ANULACION`.
+- Una cuenta por cobrar puede cargarse a mano desde la pantalla de libreta (`POST ventas/libreta/`, solo ADMIN/GERENTE) para clientes que ya debían en el libro de papel: queda sin `venta`, con un `MovimientoLibreta` de tipo `SALDO_INICIAL`, y no genera movimiento de caja ni de finanzas. Solo hay una cuenta activa por nombre de cliente.
 - Las compras registran los costos tal como figuran en la factura; impuesto y descuento solo se aplican si se informan. Las compras a crédito se saldan con `finanzas/cuentas-por-pagar/<id>/pagar/`.
 - Facturación (`ventas/facturacion.py`): los precios incluyen IVA y la tasa de cada línea se congela en `DetalleVenta.tasa_iva`. Las facturas guardan una copia de los datos del emisor y del timbrado; la numeración avanza en `ConfiguracionFacturacion` bajo `select_for_update` y un número emitido no se reutiliza (al anular la venta, la factura pasa a `ANULADA`). Valida el RUC con `normalizar_ruc` (dígito verificador módulo 11).
 - Las plantillas imprimibles (`frontend/ticket.html`, `frontend/factura.html`) son plantillas Django y se abren en una ventana nueva con `document.write`; incluye imágenes en línea (`{% include "img/logo_luna.svg" %}`), no por URL relativa.

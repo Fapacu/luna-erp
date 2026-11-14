@@ -9,3 +9,4 @@ PyJWT==2.11.0
 sqlparse==0.5.5
 python-dotenv==1.0.1
 waitress==3.0.2
+whitenoise==6.8.2
